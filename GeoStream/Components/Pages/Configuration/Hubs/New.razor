@@ -1,0 +1,518 @@
+﻿@page "/hubs/new"
+
+@using Microsoft.AspNetCore.Authorization
+@using GeoStream.Dtos
+@using GeoStream.Dtos.Configuration
+@using GeoStream.Services
+@using GeoStream.Models.Enums
+@inject IApiClient apiClient
+@inject NavigationManager navigationManager
+@inject IJSRuntime jSRuntime
+@attribute [Authorize]
+@implements IAsyncDisposable
+
+<EditForm Model="@hubDto" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="@(GetIncidentSeverity())" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.h4" Class="text-primary">Register New Hub</MudText>
+
+            <MudGrid>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Name" @bind-Value="hubDto.Name" FullWidth="true" Placeholder="Enter hub name" />
+                    <ValidationMessage For="@(() => hubDto.Name)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Code" Immediate="true" ValueChanged="@((string newValue) => OnCodeChanged(newValue))" FullWidth="true" Placeholder="Enter hub code" />
+                    <ValidationMessage For="@(() => hubDto.Code)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Description" @bind-Value="hubDto.Description" FullWidth="true" Placeholder="Enter hub description" />
+                    <ValidationMessage For="@(() => hubDto.Description)" Class="text-danger" />
+                </MudItem>
+
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudSelect Placeholder="Select country" T="int?" Label="Country" @bind-Value="hubDto.Location.CountryId" FullWidth="true" @bind-Value:event="onchange" ValueChanged="OnCountryChanged">
+                        @foreach (var country in countries)
+                        {
+                            <MudSelectItem Value="@country.Id">
+                                @country.Name
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                    <ValidationMessage For="@(() => hubDto.Location.CountryId)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudSelect Placeholder="Select region" T="int?" Label="Region" @bind-Value="hubDto.Location.RegionId" FullWidth="true" Disabled="@regionIsReadOnly" @bind-Value:event="onchange" ValueChanged="OnRegionChanged">
+                        @foreach (var region in regions)
+                        {
+                            <MudSelectItem Value="@region.Id">
+                                @region.Name
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                    <ValidationMessage For="@(() => hubDto.Location.RegionId)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudSelect Placeholder="Select district" T="int?" Label="District" @bind-Value="hubDto.Location.DistrictId" FullWidth="true" Disabled="@districtIsReadOnly">
+                        @foreach (var district in districts)
+                        {
+                            <MudSelectItem Value="@district.Id">
+                                @district.Name
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                    <ValidationMessage For="@(() => hubDto.Location.DistrictId)" Class="text-danger" />
+                </MudItem>
+
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Address" @bind-Value="hubDto.Address" FullWidth="true" Placeholder="Enter hub address" />
+                    <ValidationMessage For="@(() => hubDto.Address)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Latitude" @bind-Value="hubDto.Latitude" FullWidth="true" Placeholder="Enter hub latitude coordinate" />
+                    <ValidationMessage For="@(() => hubDto.Latitude)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Longitude" @bind-Value="hubDto.Longitude" FullWidth="true" Placeholder="Enter hub longitude coordinate" />
+                    <ValidationMessage For="@(() => hubDto.Longitude)" Class="text-danger" />
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    <MudContainer>
+        <MudGrid>
+            <MudItem sx="12" sm="4">
+                <MudCard Class="my-10">
+                    <MudCardContent>
+                        <MudGrid>
+                            <MudItem>
+                                <MudIcon Icon="@Icons.Material.Filled.SettingsInputAntenna" Style="color:#4CAF50;" />
+                            </MudItem>
+                            <MudItem>
+                                <MudText Typo="Typo.h6">Add scanners to the hub</MudText>
+                            </MudItem>
+                        </MudGrid>
+                        <MudGrid>
+                            <MudItem xs="12" sm="12">
+                                <MudTextField @bind-Value="laneDestination" Label="Lane destination" Placeholder="Enter lane destination" />
+                            </MudItem>
+                            <MudItem xs="12" sm="8">
+                                <MudTextField @bind-Value="laneDirectionDegrees" Label="Lane direction (°)" Placeholder="Enter lane direction in degrees" />
+                            </MudItem>
+                            <MudItem xs="12" sm="4" Class="d-flex align-items-end">
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddScanner">
+                                    +
+                                </MudButton>
+                            </MudItem>
+                        </MudGrid>
+                        @if (!string.IsNullOrEmpty(addScannerErrorMessage))
+                        {
+                            <MudAlert Severity="MudBlazor.Severity.Error" Class="mb-2">
+                                @addScannerErrorMessage
+                            </MudAlert>
+                        }
+
+                        <MudList>
+                            @foreach (var scanner in hubDto.Scanners)
+                            {
+                                <MudListItem>
+                                    <MudGrid Class="align-items-center">
+                                        <MudItem Class="py-2">
+                                            <MudIcon Icon="@Icons.Material.Filled.SettingsInputAntenna" Size="Size.Small" Style="font-size: 12px; color:#4CAF50" />
+                                        </MudItem>
+                                        <MudItem Class="py-2">
+                                            <MudText><b>@scanner.Code</b> @((new MarkupString(CreateSvgArrow(scanner.LaneDirectionDegrees))))</MudText>
+                                            <MudText>Direction: <b>@scanner.LaneDestination</b></MudText>
+                                        </MudItem>
+                                        <MudItem Class="py-0">
+                                            <MudIconButton Class="py-2" Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteScanner(@scanner.Code))" />
+                                        </MudItem>
+                                    </MudGrid>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+            <MudItem xs="12" sm="8">
+                <MudCard Class="my-10">
+                    <MudCardContent Class="mt-0 pt-2">
+                        <MudIconButton Class="pb-1 pt-0 px-0" Icon="@Icons.Material.Filled.LocationSearching" Size="Size.Medium" Color="Color.Primary" OnClick="@(async () => await UpdateMapFromCoordinatesAsync())" />
+                        <div id="map" style="height: 400px; width: 100%;">
+                            @if (isMapLoading)
+                            {
+                                <div style="display: flex; justify-content: center; margin-top: 20px;">
+                                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Style="margin-left: 10px;" />
+                                </div>
+                            }
+                        </div>
+                    </MudCardContent>
+                </MudCard>
+                <MudCard Class="my-10">
+                    <MudCardHeader>
+                        <MudText Typo="Typo.h6">
+                            <MudIcon Icon="@Icons.Material.Filled.Directions" Style="color: #4CAF50;" /> Routes
+                        </MudText>
+                    </MudCardHeader>
+                    <MudCardContent Class="mt-0 pt-2">
+                        @if (areRoutesLoading)
+                        {
+                            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Style="margin-left: 10px;" />
+                        }
+                        else
+                        {
+                            @foreach (var route in routes)
+                            {
+                                <a href="/routes/@route.Id" class="route-link">
+                                    <MudChip Class="m-1" Style="@GetChipStyle(route.Color)">@route.Name</MudChip>
+                                </a>
+                            }
+                            @if (routes.Count() == 0)
+                            {
+                                <span>No registered routes pass through this hub.</span>
+                            }
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+    </MudContainer>
+
+    <MudCardActions Class="my-6">
+        <MudButton ButtonType="ButtonType.Submit" Size="Size.Large" Color="Color.Primary" Variant="Variant.Filled">
+            Save
+        </MudButton>
+        <MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Color="Color.Primary" OnClick='() => navigationManager.NavigateTo("/hubs")'>
+            Back to the list
+        </MudButton>
+    </MudCardActions>
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="@(GetIncidentSeverity())" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+</EditForm>
+
+@code {
+    private bool isMapLoading = true;
+    private bool areRoutesLoading = false;
+    private MarkupString notificationMessage = default;
+    private string? addScannerErrorMessage;
+    private bool isOperationSuccessful = false;
+    private bool regionIsReadOnly = true;
+    private bool districtIsReadOnly = true;
+    private HubDto hubDto = new HubDto()
+        {
+            Location = new LocationDto(),
+            Scanners = new List<ScannerDto>()
+        };
+
+    private float laneDirectionDegrees = 0;
+    private string laneDestination = string.Empty;
+    private int selectedLanes = 1;
+
+    private List<CountryDto> countries = new List<CountryDto>();
+    private List<RegionDto> regions = new List<RegionDto>();
+    private List<DistrictDto> districts = new List<DistrictDto>();
+
+    private Task<ApiResponseDto<List<HubDto>>>? getAllHubsResponseTask;
+    private List<HubDto> hubs = new List<HubDto>();
+    private List<RouteDto> routes = new List<RouteDto>();
+    private bool isApiCalled = false;
+    private bool jsInitializing = false;
+    private bool isComponentRendered = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var responseCountries = await apiClient.SendRequest<ApiResponseDto<List<CountryDto>>>("ScannersApi.Country.Search", new { StatusId = Status.Active });
+        if (responseCountries.Succeeded && responseCountries.Data != null)
+        {
+            countries = responseCountries.Data;
+        }
+        else
+        {
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString(string.Concat(notificationMessage.Value, "Failed to load the countries from the API."));
+        }
+
+        getAllHubsResponseTask = apiClient.SendRequest<ApiResponseDto<List<HubDto>>>("ScannersApi.Hub.Search", new { StatusId = Status.Active });
+
+        isApiCalled = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            isComponentRendered = true;
+        }
+
+        //Variables to prevent double initialization and javascript errors
+        if (isApiCalled && !jsInitializing)
+        {
+            jsInitializing = true;
+
+            if (getAllHubsResponseTask != null)
+            {
+                var getAllHubsResponse = await getAllHubsResponseTask;
+
+                if (getAllHubsResponse.Succeeded && getAllHubsResponse.Data != null)
+                {
+                    if (getAllHubsResponse.Data.Count() > 0)
+                    {
+                        hubs = getAllHubsResponse.Data;
+                    }
+                }
+                else
+                {
+                    notificationMessage = new MarkupString(string.Concat(notificationMessage.Value, "Failed to load the hubs from the API."));
+                }
+            }
+
+            await jSRuntime.InvokeVoidAsync("initializeLeafletMapWhenReady", hubs, new List<IncidentDto>(), routes, true, DotNetObjectReference.Create(this));
+
+            isMapLoading = false;
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        hubDto.RouteHubs = routes.Select(x => new RouteHubDto() { RouteId = x.Id }).ToList();
+
+        var response = await apiClient.SendRequest<ApiResponseDto<HubDto>>("ScannersApi.Hub.Create", hubDto);
+
+        if (response.Succeeded && response.Data != null)
+        {
+            isOperationSuccessful = true;
+            notificationMessage = new MarkupString("Hub successfully registered.");
+            hubs.Add(response.Data);
+            hubDto = new HubDto()
+                {
+                    Location = new LocationDto(),
+                    Scanners = new List<ScannerDto>()
+                };
+            selectedLanes = 1;
+            routes = new List<RouteDto>();
+
+            await jSRuntime.InvokeVoidAsync("disposeLeafletMap");
+            jsInitializing = false;
+        }
+        else
+        {
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString(string.Join(". ", response.Errors ?? new List<string> { "Error." }));
+        }
+    }
+
+    private async Task OnCountryChanged(int? newValue)
+    {
+        hubDto.Location.CountryId = newValue;
+        hubDto.Location.RegionId = null;
+        hubDto.Location.DistrictId = null;
+
+        if (hubDto.Location.CountryId != null)
+        {
+            getAllHubsResponseTask = apiClient.SendRequest<ApiResponseDto<List<HubDto>>>("ScannersApi.Hub.Search", new { StatusId = Status.Active });
+
+            var responseRegions = await apiClient.SendRequest<ApiResponseDto<List<RegionDto>>>("ScannersApi.Region.Search", new { CountryId = hubDto.Location.CountryId.ToString()});
+
+            if (responseRegions.Succeeded && responseRegions.Data != null)
+            {
+                regions = responseRegions.Data;
+                regionIsReadOnly = false;
+            }
+            else
+            {
+                isOperationSuccessful = false;
+                notificationMessage = new MarkupString(string.Concat(notificationMessage.Value, "<br>Failed to load the regions from the API."));
+            }
+        }
+        else
+        {
+            regionIsReadOnly = true;
+            districtIsReadOnly = true;
+        }
+    }
+
+    private async Task OnRegionChanged(int? newValue)
+    {
+        hubDto.Location.RegionId = newValue;
+        hubDto.Location.DistrictId = null;
+
+        if (hubDto.Location.RegionId != null)
+        {
+            var responseDistricts = await apiClient.SendRequest<ApiResponseDto<List<DistrictDto>>>("ScannersApi.District.Search", new { RegionId = hubDto.Location.RegionId.ToString()});
+
+            if (responseDistricts.Succeeded && responseDistricts.Data != null)
+            {
+                districts = responseDistricts.Data;
+                districtIsReadOnly = false;
+            }
+            else
+            {
+                isOperationSuccessful = false;
+                notificationMessage = new MarkupString(string.Concat(notificationMessage.Value, "<br>Failed to load the districts from the API."));
+            }
+        }
+        else
+        {
+            districtIsReadOnly = true;
+        }
+    }
+
+    private void OnCodeChanged(string newValue)
+    {
+        hubDto.Code = newValue;
+        RecreateScannersCodes();
+    }
+
+    private void AddScanner()
+    {
+        if (!string.IsNullOrEmpty(hubDto.Code) && hubDto.Latitude != 0 && hubDto.Longitude != 0)
+        {
+            if (laneDirectionDegrees >= 0 && laneDirectionDegrees <= 360)
+            {
+                if (!string.IsNullOrEmpty(laneDestination))
+                {
+                    string scannerCode = string.Concat(hubDto.Code, "-SC", hubDto.Scanners.Count + 1);
+                    if (!hubDto.Scanners.Any(x => x.Code == scannerCode))
+                    {
+                        hubDto.Scanners.Add(new ScannerDto() { Code = scannerCode, LaneDirectionDegrees = laneDirectionDegrees, LaneDestination = laneDestination });
+                        addScannerErrorMessage = null;
+                    }
+                    else
+                    {
+                        addScannerErrorMessage = "A scanner with that code already exists in this hub.";
+                    }
+
+                }
+                else
+                {
+                    addScannerErrorMessage = "You must fill in the lane destination field.";
+                }
+            }
+            else
+            {
+                addScannerErrorMessage = "The lane direction degrees must be a number between 0 and 360.";
+            }
+        }
+        else
+        {
+            addScannerErrorMessage = "You must fill in the hub's code, latitude, and longitude before adding scanners.";
+        }
+    }
+
+    private void DeleteScanner(string scannerCode)
+    {
+        var scannerToDelete = hubDto.Scanners.FirstOrDefault(a => a.Code == scannerCode);
+        if (scannerToDelete != null)
+        {
+            hubDto.Scanners.Remove(scannerToDelete);
+            RecreateScannersCodes();
+        }
+    }
+
+    private void RecreateScannersCodes()
+    {
+        for (int i = 0; i < hubDto.Scanners.Count; i++)
+        {
+            hubDto.Scanners[i].Code = System.Text.RegularExpressions.Regex.Replace(hubDto.Scanners[i].Code, @"^[^-]+-SC\d+", m => $"{hubDto.Code}-SC{i + 1}");
+        }
+    }
+
+    private async Task UpdateMapFromCoordinatesAsync()
+    {
+        areRoutesLoading = true;
+        StateHasChanged();
+
+        var responseRoutes = await apiClient.SendRequest<ApiResponseDto<List<RouteDto>>>("ScannersApi.Route.Search", new { HubId = hubDto.Id.ToString(), HubLatitude = hubDto.Latitude.ToString(), HubLongitude = hubDto.Longitude.ToString() });
+
+        if (responseRoutes.Succeeded && responseRoutes.Data != null)
+        {
+            routes = responseRoutes.Data;
+        }
+        else
+        {
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString(string.Concat(notificationMessage.Value, "<br>Failed to load the routes from the API."));
+        }
+
+        await jSRuntime.InvokeVoidAsync("updateMapFromNewHubCoordinates", hubDto.Latitude, hubDto.Longitude, routes);
+
+        areRoutesLoading = false;
+    }
+
+    [JSInvokable]
+    public async Task UpdateFormCoordinates(decimal lat, decimal lng)
+    {
+        hubDto.Latitude = lat;
+        hubDto.Longitude = lng;
+        await UpdateMapFromCoordinatesAsync();
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void UpdateFormLaneDirectionDegrees(string degrees)
+    {
+        if (float.TryParse(degrees, out var degreesFloat))
+        {
+            laneDirectionDegrees = degreesFloat;
+            StateHasChanged();
+        }
+    }
+
+    private static string CreateSvgArrow(double degrees, string color = "green", double size = 30)
+    {
+        double halfSize = size / 2;
+        double arrowLength = halfSize * 0.9; // Length of the arrow relative to the size
+        double angleRad = degrees * (Math.PI / 180); // Convert degrees to radians
+
+        // Calculate the endpoint of the arrow
+        double arrowX = halfSize + arrowLength * Math.Cos(angleRad);
+        double arrowY = halfSize - arrowLength * Math.Sin(angleRad);
+
+        // Calculate the points for the arrowhead
+        double arrowHead1X = arrowX - 6 * Math.Cos(angleRad - Math.PI / 6);
+        double arrowHead1Y = arrowY + 6 * Math.Sin(angleRad - Math.PI / 6);
+        double arrowHead2X = arrowX - 6 * Math.Cos(angleRad + Math.PI / 6);
+        double arrowHead2Y = arrowY + 6 * Math.Sin(angleRad + Math.PI / 6);
+
+        // Create SVG element
+        string svg = $"<svg width=\"{size}\" height=\"{size}\" viewBox=\"0 0 {size} {size}\" xmlns=\"http://www.w3.org/2000/svg\" style=\"vertical-align: middle; margin-left: 4px;\">" +
+                     $"<line x1=\"{halfSize}\" y1=\"{halfSize}\" x2=\"{arrowX}\" y2=\"{arrowY}\" stroke=\"{color}\" stroke-width=\"2\" />" +
+                     $"<polygon points=\"{arrowX},{arrowY} {arrowHead1X},{arrowHead1Y} {arrowHead2X},{arrowHead2Y}\" fill=\"{color}\" />" +
+                     $"</svg>";
+
+        return svg;
+    }
+
+    private MudBlazor.Severity GetIncidentSeverity()
+    {
+        return isOperationSuccessful ? MudBlazor.Severity.Success : MudBlazor.Severity.Error;
+    }
+
+    private string GetChipStyle(string color)
+    {
+        return $"cursor: pointer; background-color: {color}; color: white;";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (isComponentRendered)
+        {
+            await jSRuntime.InvokeVoidAsync("disposeLeafletMap");
+        }
+    }
+}
+

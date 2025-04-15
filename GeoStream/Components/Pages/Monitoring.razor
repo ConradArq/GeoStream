@@ -1,0 +1,1007 @@
+﻿@page "/monitoring"
+@using Microsoft.AspNetCore.Authorization
+@using MudExtensions
+@using MudExtensions.Enums
+@using GeoStream.Dtos
+@using GeoStream.Dtos.Configuration
+@using GeoStream.Dtos.Application
+@using GeoStream.Extensions
+@using GeoStream.Models.Enums
+@using GeoStream.Services
+@inject NavigationManager navigationManager
+@inject IJSRuntime jSRuntime
+@inject IApiClient apiClient
+@attribute [Authorize]
+@implements IAsyncDisposable
+
+<div class="content-wrapper">
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="MudBlazor.Severity.Error" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+    <MudPaper Class="mt-3">
+        <MudCard Class="mb-2" Style="max-width: 100%;">
+            <MudCardContent>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: center; height: 40px;">
+                        <MudText Typo="Typo.h6">
+                            <MudIcon Icon="@Icons.Material.Filled.SettingsInputAntenna" Style="color: #3F51B5;" /> Monitoring
+                        </MudText>
+                        @if (isLoading)
+                        {
+                            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Style="margin-left: 10px;" />
+                        }
+                    </div>
+                    <MudButton Variant="Variant.Filled" Color="Color.Secondary" Size="Size.Small" Class="ml-2" OnClick="@ClearFilters">
+                        Clean Filters
+                    </MudButton>
+                </div>
+
+            </MudCardContent>
+
+            <MudGrid Style="padding: 0 16px;">
+
+                <MudItem xs="12" sm="4" Class="mb-2">
+                    <MudSelectExtended @key="selectedHubName" T="string" Value="@selectedHubName" MultiSelection="false" ItemCollection="filteredHubs.Select(x=>x.Name).ToList()" SearchBox="true" SearchBoxAutoFocus="true" Label="Hub" AnchorOrigin="Origin.BottomCenter" Variant="Variant.Outlined" SearchBoxClearable="true" Clearable="true" ValueChanged="@((newValue) => OnHubChanged(newValue))" />
+                </MudItem>
+
+                <MudItem xs="12" sm="4" Class="mb-2">
+                    <MudSelectExtended @key="selectedScannerCodeDestination" T="string" Value="selectedScannerCodeDestination" MultiSelection="false" ItemCollection='filteredScanners.Select(x=>GetScannerDisplayName(x)).ToList()' SearchBox="true" SearchBoxAutoFocus="true" Label="Scanner" AnchorOrigin="Origin.BottomCenter" Variant="Variant.Outlined" SearchBoxClearable="true" Clearable="true" ValueChanged="@((newValue) => OnScannerChanged(newValue))" />
+                </MudItem>
+
+                <MudItem xs="12" sm="4" Class="mb-2">
+                    <MudSelectExtended @key="selectedRouteName" T="string" Value="selectedRouteName" MultiSelection="false" ItemCollection="filteredRoutes.Select(x=>x.Name).ToList()" SearchBox="true" SearchBoxAutoFocus="true" Label="Route" AnchorOrigin="Origin.BottomCenter" Variant="Variant.Outlined" SearchBoxClearable="true" Clearable="true" ValueChanged="@((newValue) => OnRouteChanged(newValue))" />
+                </MudItem>
+
+                <MudItem xs="12" sm="4" Class="mb-2">
+                    <MudSelectExtended @key="selectedAssetCode" T="string" Value="selectedAssetCode" MultiSelection="false" ItemCollection="filteredAssets.Select(x=>x.Code).ToList()" SearchBox="true" SearchBoxAutoFocus="true" Label="Asset Code" AnchorOrigin="Origin.BottomCenter" Variant="Variant.Outlined" SearchBoxClearable="true" Clearable="true" ValueChanged="@((newValue) => OnAssetCodeChanged(newValue))" />
+                </MudItem>
+
+                <MudItem xs="12" sm="4" Class="mb-2">
+                    <MudSelectExtended @key="selectedAssetEmitter" T="string" Value="selectedAssetEmitter" MultiSelection="false" ItemCollection="filteredAssets.Where(x=>!string.IsNullOrEmpty(x.Emitter)).Select(x=>x.Emitter).ToList()" SearchBox="true" SearchBoxAutoFocus="true" Label="Emitter (Registered)" AnchorOrigin="Origin.BottomCenter" Variant="Variant.Outlined" SearchBoxClearable="true" Clearable="true" ValueChanged="@((newValue) => OnAssetEmitterChanged(newValue))" />
+                </MudItem>
+
+                <MudItem xs="12" sm="1" Class="mb-2">
+                </MudItem>
+
+                <MudItem xs="12" sm="3" Class="mb-2">
+                    <MudDatePicker @key="StartDate" @bind-Date="StartDate" Label="Start Date" Clearable="true" DateFormat="d/M/yyyy" />
+                    <MudTimePicker @key="StartTime" @bind-Time="StartTime" Label="Start Time" Clearable="true" />
+                </MudItem>
+
+                <MudItem xs="12" sm="3" Class="mb-2">
+                    <MudDatePicker @key="EndDate" @bind-Date="EndDate" Label="End Date" Clearable="true" DateFormat="d/M/yyyy" />
+                    <MudTimePicker @key="EndTime" @bind-Time="EndTime" Label="End Time" Clearable="true" />
+                </MudItem>
+
+                <MudItem xs="12" sm="1" Class="mb-2">
+                </MudItem>
+
+                <MudItem xs="12" sm="4" Class="mb-2">
+                    <div style="display: flex; align-items: center;">
+                        <MudTextField @bind-Value="searchEmitter" Placeholder="Emitter Search" Adornment="Adornment.Start" IconSize="Size.Medium" FullWidth="true" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Search" Color="Color.Primary" Size="Size.Small" OnClick="@table.ReloadServerData" Class="mt-5" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Secondary" Size="Size.Small" OnClick="@( () => {searchEmitter = ""; table.ReloadServerData();} )" Class="mt-5" />
+                    </div>
+                    <div style="display: flex; align-items: center;">
+                        <MudTextField @bind-Value="searchString" Placeholder="Free search" Adornment="Adornment.Start" IconSize="Size.Medium" FullWidth="true" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Search" Color="Color.Primary" Size="Size.Small" OnClick="@table.ReloadServerData" Class="mt-5" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Secondary" Size="Size.Small" OnClick="@( () => {searchString = ""; table.ReloadServerData();} )" Class="mt-5" />
+                    </div>
+                </MudItem>
+
+                <MudItem xs="12" sm="1" Class="mb-2">
+                </MudItem>
+
+                @if (isDateError || isTimeError)
+                {
+                    <MudItem xs="12" sm="6" Class="pt-0">
+                        @if (isDateError)
+                        {
+                            <MudText Color="Color.Error" Class="mt-1">The start date cannot be later than the end date.</MudText>
+                        }
+                        @if (isTimeError)
+                        {
+                            <MudText Color="Color.Error" Class="mt-1">The start time cannot be later than the end date.</MudText>
+                        }
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudCard>
+        <br />
+        <br />
+        <div id="map">
+            @if (isLoading)
+            {
+                <div style="display: flex; justify-content: center; margin-top: 20px;">
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Style="margin-left: 10px;" />
+                </div>
+            }
+        </div>
+        <br />
+        <br />
+        <MudTable ServerData="@GetServerData" RowsPerPage="10" Dense="true" Hover="true" Striped="true" Bordered="true" @ref="table">
+            <HeaderContent>
+                <MudTh><MudTableSortLabel SortBy="new Func<MonitoringDto, object>(x=>x.HubName)" SortLabel="HubName">Name of hub</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<MonitoringDto, object>(x=>x.ScannerCodeDestination)" SortLabel="ScannerCode">Scanner</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<MonitoringDto, object>(x=>x.Emitter)" SortLabel="Emitter">Emitter</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<MonitoringDto, object>(x=>x.AssetCode)" SortLabel="AssetCode">Asset Code</MudTableSortLabel></MudTh>
+                <MudTh>Routes</MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<MonitoringDto, object>(x=>x.DateTime)" SortLabel="DateTime">Reading Date</MudTableSortLabel></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Name of hub">
+                    @* Hub existed in the system at the time of the reading of the emitter and still does *@
+                    @if (!string.IsNullOrEmpty(context.HubCode) && context.HubId != 0)
+                    {
+                        <MudButton>
+                            <a href="/hubs/@context.HubId" target="_blank" style="text-decoration: none; color: inherit;">
+                                @context.HubName
+                            </a>
+                        </MudButton>
+                    }
+                    @* Hub existed in the system at the time of the reading of the emitter but no longer does *@
+                    else if (!string.IsNullOrEmpty(context.HubCode) && context.HubId == 0)
+                    {
+                        <div>The hub (code: <b>@context.HubCode</b>, latitude: <b>@context.Latitude</b>, longitude: <b>@context.Longitude</b>) is no longer registered in the system.</div>
+                    }
+                    @* Hub didn't exist in the system at the time of the reading of the emitter and it may or may not exist now *@
+                    else
+                    {
+                        <div>The scanner that read this emitter was not registered in any hub at the time of the reading.</div>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Scanner">
+                    @* The scanner that read the emitter still exists in the system (context.ScannerCode will always be registered at the time of reading as it's part of the core configuration of the scanner) *@
+                    @if (!string.IsNullOrEmpty(@context.ScannerCodeDestination))
+                    {
+                        @context.ScannerCodeDestination
+                    }
+                    @* The scanner that read the emitter no longer exists in the system *@
+                    else
+                    {
+                        <div>The scanner (code: <b>@context.ScannerCode</b>, direction: <b>@(context.LaneDirectionDegrees)º</b>, destination: <b>@context.Destination</b>) is no longer registered in the system.</div>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Emitter">@context.Emitter</MudTd>
+                <MudTd DataLabel="Asset Code">
+                    @* Asset existed in the system at the time of the reading of the emitter and still does *@
+                    @if (!string.IsNullOrEmpty(context.AssetCode) && context.AssetId != 0)
+                    {
+                        <MudButton>
+                            <a href="/assets/@context.AssetId" target="_blank" style="text-decoration: none; color: inherit;">
+                                @context.AssetCode
+                            </a>
+                        </MudButton>
+                    }
+                    @* Asset existed in the system at the time of the reading of the emitter but no longer does *@
+                    else if (!string.IsNullOrEmpty(context.AssetCode) && context.AssetId == 0)
+                    {
+                        <div>The asset (code: <b>@context.AssetCode</b>) is no longer registered in the system.</div>
+                    }
+                    @* Asset was not associated with a emitter at the time of the reading of the emitter and it may or may not be now *@
+                    else
+                    {
+                        <div>There was no asset associated with this Emitter at the time of the reading.</div>
+                    }
+                </MudTd>             
+                <MudTd DataLabel="Routes">
+                    @{
+                        int contextHashCode = context.GetHashCode();
+                    }
+                    <MudIconButton Icon="@Icons.Material.Filled.Search" Style="color: #4CAF50;" OnClick="(()=>FetchRoutesAndTogglePopover(contextHashCode, context.HubId))" />
+                    <MudPopover Open="@GetRoutesPopoverState(contextHashCode)" Fixed="true" Class="px-4 pt-4">
+                        <div class="d-flex flex-column">
+                            <MudText>
+                                @{
+                                    var routesPopoverEntry = (dynamic)routesPopoverStateDictionary[contextHashCode];
+
+                                    if (routesPopoverEntry != null && routesPopoverEntry!.Routes != null && routesPopoverEntry!.Routes.Count > 0)
+                                    {
+                                        foreach (var route in routesPopoverEntry!.Routes)
+                                        {
+                                            <div>
+                                                <a href="/routes/@route.Id" target="_blank" class="route-link">
+                                                    <MudChip Class="m-1" Style="@GetChipStyle(route.Color)">@route.Name</MudChip>
+                                                </a>
+                                            </div>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <div>There are no routes that pass through this hub.</div>
+                                    }
+                                }
+
+                            </MudText>
+                            <MudButton OnClick="(()=>FetchRoutesAndTogglePopover(contextHashCode, context.HubId))" Class="ml-auto mr-n3 mb-1" Color="Color.Error">Close</MudButton>
+                        </div>
+                    </MudPopover>
+                </MudTd>
+                <MudTd DataLabel="Reading Date">@context.DateTime.InTimeZone()</MudTd>
+            </RowTemplate>
+
+            <PagerContent>
+                <div style="display: flex; justify-content: flex-end; border-top: 1px solid #e0e0e0;">
+                    @if (isLoading)
+                    {
+                        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Style="margin-right: 10px; margin-top: 5px;" />
+                    }
+                    <MudTablePager RowsPerPageString="No. of rows per page" InfoFormat="{first_item}-{last_item} of {all_items}" />
+                </div>
+            </PagerContent>
+        </MudTable>
+    </MudPaper>
+</div>
+
+<style>
+    .mud-progress-linear {
+    display: none;
+    }
+
+    .mud-table-pagination-toolbar {
+    border: none;
+    }
+</style>
+
+@code {
+
+    #region Properties and Fields
+
+    [SupplyParameterFromQuery(Name = "hub-code")]
+    public string HubCodeQueryParam { get; set; } = string.Empty;
+    [SupplyParameterFromQuery(Name = "scanner-code")]
+    public string ScannerCodeQueryParam { get; set; } = string.Empty;
+    [SupplyParameterFromQuery(Name = "route-id")]
+    public string RouteIdQueryParam { get; set; } = string.Empty;
+    [SupplyParameterFromQuery(Name = "asset-code")]
+    public string AssetCodeQueryParam { get; set; } = string.Empty;
+
+    private bool isLoading = true;
+    private IEnumerable<HubDto> hubs = new List<HubDto>();
+    private IEnumerable<HubDto> filteredHubs = new List<HubDto>();
+    private IEnumerable<ScannerDto> scanners = new List<ScannerDto>();
+    private IEnumerable<ScannerDto> filteredScanners = new List<ScannerDto>();
+    private IEnumerable<RouteDto> routes = new List<RouteDto>();
+    private IEnumerable<RouteDto> filteredRoutes = new List<RouteDto>();
+    private IEnumerable<AssetDto> assets = new List<AssetDto>();
+    private IEnumerable<AssetDto> filteredAssets = new List<AssetDto>();
+    private IEnumerable<RouteDto> routesWithGeoJson = new List<RouteDto>();
+    private Task<ApiResponseDto<IEnumerable<RouteDto>>>? routesWithGeoJsonResultTask;
+    private Task<ApiResponseDto<IEnumerable<RouteHubDto>>>? routeHubsResultTask;
+
+    private string? selectedHubName;
+    private string? selectedScannerCodeDestination;
+    private string? selectedRouteName;
+    private string? selectedAssetCode;
+    private string? selectedAssetEmitter;
+    private string searchString = string.Empty;
+    private string searchEmitter = string.Empty;
+    private DateTime? _startDate;
+    private TimeSpan? _startTime;
+    private DateTime? _endDate;
+    private TimeSpan? _endTime;
+    private bool isDateError = false;
+    private bool isTimeError = false;
+
+    //The ValueChanged logic of MudDatePicker components is done in setters due to MudBlazor not recognizing ValueChanged parameter for MudDatePicker components
+    public DateTime? StartDate
+    {
+        get => _startDate;
+        set
+        {
+            if (_startDate != value)
+            {
+                if (EndDate.HasValue && value.HasValue && value > EndDate)
+                {
+                    isDateError = true;
+                }
+                else
+                {
+                    isDateError = false;
+                    _startDate = value;
+                    table.ReloadServerData();
+                }
+            }
+        }
+    }
+
+    public DateTime? EndDate
+    {
+        get => _endDate;
+        set
+        {
+            if (_endDate != value)
+            {
+                if (StartDate.HasValue && value.HasValue && StartDate > value)
+                {
+                    isDateError = true;
+                }
+                else
+                {
+                    isDateError = false;
+                    _endDate = value;
+                    table.ReloadServerData();
+                }
+            }
+        }
+    }
+
+    public TimeSpan? StartTime
+    {
+        get => _startTime;
+        set
+        {
+            if (_startTime != value)
+            {
+                if (EndTime.HasValue && value.HasValue && value > EndTime)
+                {
+                    isTimeError = true;
+                }
+                else
+                {
+                    isTimeError = false;
+                    _startTime = value;
+                    table.ReloadServerData();
+                }
+            }
+        }
+    }
+
+    public TimeSpan? EndTime
+    {
+        get => _endTime;
+        set
+        {
+            if (_endTime != value)
+            {
+                if (StartTime.HasValue && value.HasValue && StartTime > value)
+                {
+                    isTimeError = true;
+                }
+                else
+                {
+                    isTimeError = false;
+                    _endTime = value;
+                    table.ReloadServerData();
+                }
+            }
+        }
+    }
+
+    private MudTable<MonitoringDto> table = new();
+
+    private MarkupString notificationMessage = default;
+
+    private Dictionary<int, object> routesPopoverStateDictionary = new Dictionary<int, object>();
+
+    private bool isComponentRendered = false;
+
+    #endregion
+
+    public async ValueTask DisposeAsync()
+    {
+        if (isComponentRendered)
+        {
+            try
+            {
+                await jSRuntime.InvokeVoidAsync("disposeLeafletMap");
+            }
+            catch (Exception ex)
+            {
+                _ = ex;
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        //Since Pre-rendering is enabled, OnInitializedAsync() runs twice before OnAfterRenderAsync()
+        //Because of that, we initialize class fields right after first render after component has been fully initialized to avoid duplicate api calls
+        if (firstRender)
+        {
+            await InitializeAsync();
+
+            isComponentRendered = true;
+            isLoading = false;
+
+            await table.ReloadServerData();
+        }
+    }
+
+    //Initializes dropdowns and select items if passed in query string
+    private async Task InitializeAsync()
+    {
+        //Starts fetching hub routes in the background, not needed to fill dropdowns
+        routeHubsResultTask = apiClient.SendRequest<ApiResponseDto<IEnumerable<RouteHubDto>>>("ScannersApi.Route.GetAllRouteHubs");
+        //Starts fetching hub with added information to draw routes on the map in the background, not needed to fill dropdowns
+        routesWithGeoJsonResultTask = apiClient.SendRequest<ApiResponseDto<IEnumerable<RouteDto>>>("ScannersApi.Route.Search", new { StatusId = Status.Active });
+
+        await jSRuntime.InvokeVoidAsync("initializeLeafletMapWhenReady", new List<HubDto>(), new List<IncidentDto>(), new List<HubDto>());
+
+        //Get hubs for dropdown
+        var apiHubResult = await apiClient.SendRequest<ApiResponseDto<List<HubDto>>>("ScannersApi.Hub.GetAll");
+
+        if (apiHubResult.Succeeded && apiHubResult.Data != null)
+        {
+            if (apiHubResult.Data.Count() > 0)
+            {
+                hubs = apiHubResult.Data.Where(x => !string.IsNullOrEmpty(x.Name));
+                filteredHubs = hubs;
+                var selectedHub = hubs.FirstOrDefault(x => x.Code.Equals(HubCodeQueryParam, StringComparison.OrdinalIgnoreCase));
+                if (selectedHub != null)
+                {
+                    selectedHubName = selectedHub.Name;
+                }
+            }
+        }
+        else
+        {
+            await ShowNotification($"Error retrieving the hubs from the API.");
+        }
+
+
+        //Get scanners for dropdown
+        var apiScannerResult = await apiClient.SendRequest<ApiResponseDto<List<ScannerDto>>>("ScannersApi.Scanner.GetAll");
+
+        if (apiScannerResult.Succeeded && apiScannerResult.Data != null)
+        {
+            if (apiScannerResult.Data.Count() > 0)
+            {
+                scanners = apiScannerResult.Data.Where(x => !string.IsNullOrEmpty(x.Code));
+                filteredScanners = scanners;
+                var selectedScanner = scanners.FirstOrDefault(x => x.Code.Equals(ScannerCodeQueryParam, StringComparison.OrdinalIgnoreCase));
+                if (selectedScanner != null)
+                {
+                    selectedScannerCodeDestination = GetScannerDisplayName(selectedScanner);
+                }
+            }
+        }
+        else
+        {
+            await ShowNotification($"Error retrieving the scanners from the API.");
+        }
+
+
+        //Get routes for dropdown
+        var apiRouteResult = await apiClient.SendRequest<ApiResponseDto<List<RouteDto>>>("ScannersApi.Route.GetAll", null, null, new Dictionary<string, string> { { "orderBy", "Name" } });
+
+        if (apiRouteResult.Succeeded && apiRouteResult.Data != null)
+        {
+            if (apiRouteResult.Data.Count() > 0)
+            {
+                routes = apiRouteResult.Data.Where(x => !string.IsNullOrEmpty(x.Name));
+                filteredRoutes = routes;
+                var selectedRoute = routes.FirstOrDefault(x => x.Id.ToString() == RouteIdQueryParam);
+                if (selectedRoute != null)
+                {
+                    selectedRouteName = selectedRoute.Name;
+                }
+            }
+        }
+        else
+        {
+            await ShowNotification($"Error retrieving the routes from the API.");
+        }
+
+
+        //Get assets for dropdown
+        var apiAssetResult = await apiClient.SendRequest<ApiResponseDto<List<AssetDto>>>("ScannersApi.Asset.GetAll");
+
+        if (apiAssetResult.Succeeded && apiAssetResult.Data != null)
+        {
+            if (apiAssetResult.Data.Count() > 0)
+            {
+                assets = apiAssetResult.Data.Where(x => !string.IsNullOrEmpty(x.Code));
+                filteredAssets = assets;
+                var selectedAsset = assets.FirstOrDefault(x => x.Code.Equals(AssetCodeQueryParam, StringComparison.OrdinalIgnoreCase));
+                if (selectedAsset != null)
+                {
+                    selectedAssetCode = selectedAsset.Code;                   
+                    selectedAssetEmitter = string.IsNullOrEmpty(selectedAsset?.Emitter) ? null : selectedAsset.Emitter;
+                }
+            }
+        }
+        else
+        {
+            await ShowNotification($"Error retrieving the assets from the API.");
+        }
+
+        _ = ReloadDropdownMenus();
+    }
+
+    //Loads and reloads paginated table based on filtering criteria
+    private async Task<TableData<MonitoringDto>> GetServerData(TableState state)
+    {
+        //We make sure all class fields have been initialized
+        if (isComponentRendered)
+        {
+            //Remove validation messages for dates and times as soon as a search query is sent
+            isDateError = false;
+            isTimeError = false;
+
+            //Only shows loading spinner when api response time is greater than 500ms to avoid glitchiness
+            var spinnerVisibilityCancellationTokenSource = new CancellationTokenSource();
+            var delayTask = Task.Delay(500, spinnerVisibilityCancellationTokenSource.Token).ContinueWith(t =>
+            {
+                if (!t.IsCanceled)
+                {
+                    isLoading = true;
+                    InvokeAsync(StateHasChanged);
+                }
+            });
+
+            var request = new
+            {
+                StartDate = this.StartDate,
+                EndDate = this.EndDate,
+                StartTime = this.StartTime,
+                EndTime = this.EndTime,
+                HubCodes = new List<string>(),
+                ScannerCodes = new List<string>(),
+                AssetCodes = new List<string>(),
+                Emitters = new List<string>(),
+                CurrentPage = state.Page + 1,
+                PageSize = state.PageSize,
+                SearchString = searchString,
+                SortField = state.SortLabel,
+                SortDirection = (int)state.SortDirection
+            };
+
+            try
+            {
+                #region Filters
+
+                //Search in mongoDb by Hub code if selected
+                if (!string.IsNullOrEmpty(selectedHubName))
+                {
+                    var hub = hubs.FirstOrDefault(x => x.Name == selectedHubName);
+
+                    if (hub != null)
+                    {
+                        if (request.HubCodes.Count() == 0)
+                        {
+                            request.HubCodes.Add(hub.Code);
+                        }
+                        else if (request.HubCodes.Count() > 0 && !request.HubCodes.Contains(hub.Code))
+                        {
+                            request.HubCodes.Clear();
+                            request.HubCodes.Add("Discard all documents");
+                        }
+                    }
+                }
+
+
+                //Search in mongoDb by Scanner code if selected
+                if (!string.IsNullOrEmpty(selectedScannerCodeDestination))
+                {
+                    var scanner = scanners.FirstOrDefault(x => x.Code == ExtractScannerCodeFromDisplayName(selectedScannerCodeDestination));
+                    if (scanner != null)
+                    {
+                        request.ScannerCodes.Add(scanner.Code);
+                    }
+                }
+
+
+                //Search in mongoDb by Route name if selected
+                if (!string.IsNullOrEmpty(selectedRouteName))
+                {
+                    var route = routes.FirstOrDefault(x => x.Name == selectedRouteName);
+                    if (route != null && routeHubsResultTask != null)
+                    {
+                        var apiScannerResult = await routeHubsResultTask;
+                        if (apiScannerResult.Succeeded && apiScannerResult.Data != null)
+                        {
+                            if (apiScannerResult.Data.Count() > 0)
+                            {
+                                var routeHubDtos = apiScannerResult.Data;
+
+                                var filteredHubs = hubs.Where(s => routeHubDtos.Any(rs => rs.HubId == s.Id && rs.RouteId == route.Id)).ToList();
+
+                                if (filteredHubs.Count() == 0)
+                                {
+                                    request.HubCodes.Clear();
+                                    request.HubCodes.Add("Discard all documents");
+                                }
+                                else
+                                {
+                                    if (request.HubCodes.Count() == 0)
+                                    {
+                                        foreach (var filteredHub in filteredHubs)
+                                        {
+                                            request.HubCodes.Add(filteredHub.Code);
+                                        }
+                                    }
+                                    // If both a route and a hub are selected, apply an AND filter.
+                                    // If there are hubs within the selected route that don't match the selected hub a placeholder marker is added to indicate mongodb that all documents should be discarded.
+                                    else if (request.HubCodes.Count() > 0 && filteredHubs.Any(fs => !request.HubCodes.Contains(fs.Code)))
+                                    {
+                                        request.HubCodes.Clear();
+                                        request.HubCodes.Add("Discard all documents");
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                request.HubCodes.Clear();
+                                request.HubCodes.Add("Discard all documents");
+                            }
+                        }
+                        else
+                        {
+                            await ShowNotification($"Error querying the hubs of the selected route from the API.");
+                        }
+                    }
+                }
+
+
+                //Search in mongoDb by Asset Code if selected
+                if (!string.IsNullOrEmpty(selectedAssetCode))
+                {
+                    var asset = assets.FirstOrDefault(x => x.Code == selectedAssetCode);
+                    if (asset != null)
+                    {
+                        if (request.AssetCodes.Count() == 0)
+                        {
+                            request.AssetCodes.Add(asset.Code);
+                        }
+                        //If other asset-related filters don't correspond the same asset, placeholder is used to instruct mongdodb to discard all documents.
+                        else if (request.AssetCodes.Count() > 0 && !request.AssetCodes.Contains(asset.Code))
+                        {
+                            request.AssetCodes.Clear();
+                            request.AssetCodes.Add("Discard all documents");
+                        }
+                    }
+                }
+
+                //Search in mongoDb by emitter if selected
+                if (!string.IsNullOrEmpty(selectedAssetEmitter))
+                {
+                    if (request.Emitters.Count() == 0)
+                    {
+                        request.Emitters.Add(selectedAssetEmitter);
+                    }
+                    else if (request.Emitters.Count() > 0 && !request.Emitters.Contains(selectedAssetEmitter))
+                    {
+                        request.Emitters.Clear();
+                        request.Emitters.Add("Discard all documents");
+                    }
+                }
+
+                //Search in mongoDb by emitter in search text field
+                if (!string.IsNullOrEmpty(searchEmitter))
+                {
+                    if (request.Emitters.Count() == 0)
+                    {
+                        request.Emitters.Add(searchEmitter);
+                    }
+                    else if (request.Emitters.Count() > 0 && !request.Emitters.Contains(searchEmitter))
+                    {
+                        request.Emitters.Clear();
+                        request.Emitters.Add("Discard all documents");
+                    }
+                }
+
+                #endregion
+
+                //Query api with corresponding filters which in turn queries mongodb to return matching documents
+                var getEmittersPagedResult = await apiClient.SendRequest<ApiPaginatedResponseDto<List<MonitoringDto>>>("ScannersApi.Emitter.SearchPaginated", request);
+
+                if (getEmittersPagedResult.Succeeded && getEmittersPagedResult.Data != null)
+                {
+                    //Add fields to MonitoringDto that need to be displayed in the table and map
+                    getEmittersPagedResult.Data.ForEach(monitoringDto =>
+                    {
+                        var hub = hubs.FirstOrDefault(hub => hub.Code == monitoringDto.HubCode);
+                        if (hub != null)
+                        {
+                            monitoringDto.HubId = hub.Id;
+                            monitoringDto.HubName = hub.Name;
+                        }
+                        else
+                        {
+                            monitoringDto.HubId = 0;
+                            monitoringDto.HubName = string.Empty;
+                        }
+
+                        var scanner = scanners.FirstOrDefault(scanner => scanner.Code == monitoringDto.ScannerCode);
+                        if (scanner != null)
+                        {
+                            monitoringDto.ScannerCodeDestination = GetScannerDisplayName(scanner);
+                        }
+                        else
+                        {
+                            monitoringDto.ScannerCodeDestination = string.Empty;
+                        }
+
+                        var asset = assets.FirstOrDefault(asset => asset.Code == monitoringDto.AssetCode);
+                        if (asset != null)
+                        {
+                            monitoringDto.AssetId = asset.Id;
+                        }
+                        else
+                        {
+                            monitoringDto.AssetId = 0;
+                        }
+                    });
+
+                    //Map refresh: create hub and route lists containing all different elements resulting from querying the api to be displayed on the map
+                    var filteredHubs = hubs.Where(x => getEmittersPagedResult.Data.Select(x => x.HubCode).Contains(x.Code));
+                    var routeHubsResult = routeHubsResultTask != null ? await routeHubsResultTask : null;
+                    var routesWithGeoJsonResult = routesWithGeoJsonResultTask != null ? await routesWithGeoJsonResultTask : null;
+
+                    if (routeHubsResult != null && routeHubsResult.Succeeded && routeHubsResult.Data != null && routesWithGeoJsonResult != null && routesWithGeoJsonResult.Succeeded && routesWithGeoJsonResult.Data != null)
+                    {
+                        if (routesWithGeoJsonResult.Data.Count() > 0)
+                        {
+                            routesWithGeoJson = routesWithGeoJsonResult.Data;
+                        }
+
+                        var filteredRoutesWithGeoJson = routesWithGeoJson.Where(route => routeHubsResult.Data.Any(routeHub => routeHub.RouteId == route.Id && filteredHubs.Select(x => x.Id).Contains(routeHub.HubId)));
+
+                        //MAP REFRESH
+                        await jSRuntime.InvokeVoidAsync("RefreshLeafletMap", filteredHubs, new List<IncidentDto>(), filteredRoutesWithGeoJson);
+                    }
+                    else
+                    {
+                        await ShowNotification($"Error retrieving routes from the API.");
+                    }                   
+                }
+
+                spinnerVisibilityCancellationTokenSource.Cancel();
+                isLoading = false;
+                StateHasChanged();
+
+                if (getEmittersPagedResult.Succeeded)
+                {
+                    notificationMessage = default;
+                    StateHasChanged();
+
+                    return new TableData<MonitoringDto>()
+                        {
+                            Items = getEmittersPagedResult.Data,
+                            TotalItems = getEmittersPagedResult.pagination.TotalItems
+                        };
+                }
+                else
+                {
+                    await ShowNotification($"Error retrieving the readings from the scanners.");
+                    return new TableData<MonitoringDto>()
+                        {
+                            Items = new List<MonitoringDto>(),
+                            TotalItems = 0
+                        };
+                }
+            }
+            catch (Exception ex)
+            {
+                _ = ex;
+                spinnerVisibilityCancellationTokenSource.Cancel();
+                isLoading = false;
+                StateHasChanged();
+                await ShowNotification($"Error retrieving the readings from the scanners.");
+
+                return new TableData<MonitoringDto>()
+                    {
+                        Items = new List<MonitoringDto>(),
+                        TotalItems = 0
+                    };
+            }
+        }
+        else
+        {
+            return new TableData<MonitoringDto>()
+                {
+                    Items = new List<MonitoringDto>(),
+                    TotalItems = 0
+                };
+        }
+    }
+
+    #region Select Dropdowns OnChange Callbacks
+
+    private void OnHubChanged(string? newValue)
+    {
+        selectedHubName = newValue;
+        table.ReloadServerData();
+        _ = ReloadDropdownMenus();
+    }
+
+    private void OnScannerChanged(string? newValue)
+    {
+        selectedScannerCodeDestination = newValue;
+        table.ReloadServerData();
+        _ = ReloadDropdownMenus();
+    }
+
+    private void OnRouteChanged(string? newValue)
+    {
+        selectedRouteName = newValue;
+        table.ReloadServerData();
+        _ = ReloadDropdownMenus();
+    }
+
+    private void OnAssetCodeChanged(string? newValue)
+    {
+        selectedAssetCode = newValue;
+
+        //Any one asset has the same Asset Code and Emitter
+        var selectedAsset = assets.FirstOrDefault(asset => asset.Code == selectedAssetCode);
+        selectedAssetEmitter = string.IsNullOrEmpty(selectedAsset?.Emitter) ? null : selectedAsset.Emitter;
+
+        table.ReloadServerData();
+        _ = ReloadDropdownMenus();
+    }
+
+    private void OnAssetEmitterChanged(string? newValue)
+    {
+        selectedAssetEmitter = newValue;
+
+        var selectedAsset = assets.FirstOrDefault(asset => asset.Emitter == selectedAssetEmitter);
+        selectedAssetCode = string.IsNullOrEmpty(selectedAsset?.Code) ? null : selectedAsset.Code;
+
+        table.ReloadServerData();
+        _ = ReloadDropdownMenus();
+    }
+
+    #endregion
+
+    private async Task ReloadDropdownMenus()
+    {
+        var selectedRoute = routes.FirstOrDefault(x => x.Name == selectedRouteName);
+        var selectedHub = hubs.FirstOrDefault(hub => hub.Name == selectedHubName);
+        var selectedScanner = scanners.FirstOrDefault(scanner => scanner.Code == ExtractScannerCodeFromDisplayName(selectedScannerCodeDestination));
+        var selectedAsset = assets.FirstOrDefault(asset => asset.Code == selectedAssetCode || asset.Emitter == selectedAssetEmitter);
+
+        var routeHubsResult = routeHubsResultTask != null ? await routeHubsResultTask : null;
+
+        //Hubs (Depends on selected Scanner and Route)
+        filteredHubs = hubs.Where(hub => selectedScanner == null || scanners.Where(scanner => scanner.Code == selectedScanner.Code).Any(scanner => scanner.HubId == hub.Id));
+        filteredHubs = filteredHubs.Where(hub => selectedRoute == null || routeHubsResult != null && routeHubsResult.Succeeded && routeHubsResult.Data != null && routeHubsResult.Data.Any(routeHub => routeHub.HubId == hub.Id && routeHub.RouteId == selectedRoute?.Id));
+
+        //Scanners (Depends on selected Hub and Route)
+        filteredScanners = scanners.Where(scanner => selectedHub == null || scanner.HubId == selectedHub?.Id);
+        filteredScanners = filteredScanners.Where(scanner => selectedRoute == null || routeHubsResult != null && routeHubsResult.Succeeded && routeHubsResult.Data != null && routeHubsResult.Data.Any(routeHub => routeHub.HubId == scanner.HubId && routeHub.RouteId == selectedRoute?.Id));
+
+        //Routes (Depends on selected Hub and Scanner)
+        filteredRoutes = routes.Where(route => selectedHubName == null || routeHubsResult != null && routeHubsResult.Succeeded && routeHubsResult.Data != null && routeHubsResult.Data.Any(routeHub => routeHub.RouteId == route.Id && routeHub.HubId == selectedHub?.Id));
+        filteredRoutes = filteredRoutes.Where(route => selectedScanner == null || routeHubsResult != null && routeHubsResult.Succeeded && routeHubsResult.Data != null && routeHubsResult.Data.Any(routeHub => routeHub.RouteId == route.Id && routeHub.HubId == selectedScanner?.HubId));
+
+        //Assets (Depends on selected AssetCode and AssetEmitter)
+        filteredAssets = assets.Where(asset => selectedAsset == null || asset.Id == selectedAsset.Id);
+    }
+
+    private async Task ClearFilters()
+    {
+        selectedHubName = null;
+        selectedScannerCodeDestination = string.Empty;
+        selectedRouteName = string.Empty;
+        selectedAssetCode = string.Empty;
+        selectedAssetEmitter = string.Empty;
+        searchEmitter = string.Empty;
+        searchString = string.Empty;
+        StartDate = null;
+        StartTime = null;
+        EndDate = null;
+        EndTime = null;
+
+        StateHasChanged();
+
+        await table.ReloadServerData();
+    }
+
+    private string GetScannerDisplayName(ScannerDto scanner)
+    {
+        string lane = "Unknown lane";
+        int laneIndex = scanner.Code.IndexOf("C", StringComparison.OrdinalIgnoreCase);
+
+        if (laneIndex >= 0 && laneIndex < scanner.Code.Length - 1)
+        {
+            string laneNumber = new string(scanner.Code
+                .Substring(laneIndex + 1)
+                .TakeWhile(char.IsDigit)
+                .ToArray());
+
+            if (!string.IsNullOrEmpty(laneNumber))
+            {
+                lane = $"Lane {laneNumber}";
+            }
+        }
+
+        return string.Concat(scanner.HubName, " - ", lane, " -> ", scanner.LaneDestination);
+    }
+
+    private string? ExtractScannerCodeFromDisplayName(string? scannerDisplayName)
+    {
+        if (scannerDisplayName == null)
+        {
+            return null;
+        }
+
+        const string laneSeparator = " - ";
+        const string destinationSeparator = " -> ";
+
+        int laneSeparatorIndex = scannerDisplayName.IndexOf(laneSeparator);
+        int destinationSeparatorIndex = scannerDisplayName.IndexOf(destinationSeparator);
+
+        if (laneSeparatorIndex < 0 || destinationSeparatorIndex < 0 || laneSeparatorIndex >= destinationSeparatorIndex)
+        {
+            return null;
+        }
+
+        string hubName = scannerDisplayName.Substring(0, laneSeparatorIndex).Trim();
+        string lane = scannerDisplayName.Substring(laneSeparatorIndex + laneSeparator.Length, destinationSeparatorIndex - laneSeparatorIndex - laneSeparator.Length).Trim();
+
+        if (!lane.StartsWith("Lane", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        string laneCode = lane.Replace("Lane ", "C", StringComparison.OrdinalIgnoreCase).Trim();
+
+        var matchingScanner = scanners.FirstOrDefault(a =>
+            a.HubName.Equals(hubName, StringComparison.OrdinalIgnoreCase) &&
+            a.Code.Contains(laneCode, StringComparison.OrdinalIgnoreCase));
+
+        return matchingScanner?.Code;
+    }
+
+    private async Task FetchRoutesAndTogglePopover(int contextHashCode, long hubId)
+    {
+        if (routesPopoverStateDictionary.TryGetValue(contextHashCode, out var currentValue))
+        {
+            routesPopoverStateDictionary[contextHashCode] = new
+            {
+                Open = !((dynamic)currentValue).Open,
+                Routes = ((dynamic)currentValue).Routes
+            };
+        }
+        else
+        {
+            IEnumerable<RouteDto> filteredRoutes = new List<RouteDto>();
+            if (routeHubsResultTask != null)
+            {
+                var apiScannerResult = await routeHubsResultTask;
+
+                if (apiScannerResult.Succeeded && apiScannerResult.Data != null)
+                {
+                    if (apiScannerResult.Data.Count() > 0)
+                    {
+                        var routeHubDtos = apiScannerResult.Data;
+                        filteredRoutes = routes.Where(s => routeHubDtos.Any(rs => rs.RouteId == s.Id && rs.HubId == hubId)).ToList();
+                    }
+                }
+                else
+                {
+                    await ShowNotification($"Error querying the routes of hub {hubId} from the API.");
+                }
+
+                routesPopoverStateDictionary.Add(contextHashCode, new { Open = true, Routes = filteredRoutes });
+            }
+        }
+    }
+
+    private bool GetRoutesPopoverState(int contextHashCode)
+    {
+        return routesPopoverStateDictionary.TryGetValue(contextHashCode, out var value) && ((dynamic)value).Open;
+    }
+
+    private string GetChipStyle(string color)
+    {
+        return $"cursor: pointer; background-color: {color}; color: white;";
+    }
+
+    private async Task ShowNotification(string msg, bool temporary = false)
+    {
+        notificationMessage = new MarkupString(msg);
+        StateHasChanged();
+        if (temporary)
+        {
+            await Task.Delay(5000);
+            notificationMessage = default;
+            StateHasChanged();
+        }
+    }
+}

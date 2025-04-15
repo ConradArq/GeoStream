@@ -1,0 +1,89 @@
+﻿@page "/roles/{RoleId}"
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using GeoStream.Dtos.Administration.Roles
+@using GeoStream.Services
+@using GeoStream.Models.Enums
+@inject IRoleService roleService
+@inject NavigationManager navigationManager
+@attribute [Authorize]
+
+<EditForm Model="@viewEditRole" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <div class="card">
+        <div class="card-body">
+            <h4 class="card-title">Detalles of role</h4>
+            @if (showNotification)
+            {
+                <div class="alert @GetIncidentClass()" role="alert">
+                    @notificationMessage
+                </div>
+            }
+            <div class="row" style="margin-top:30px">
+                <div class="col-4 mt-2">
+                    <div class="form-group">
+                        <label for="Name">Name</label>
+                        <InputText id="Name" @bind-Value="viewEditRole.Name" class="form-control" @attributes="@ReadOnlyAttributes" />
+                        <ValidationMessage For="@(() => viewEditRole.Name)" class="text-danger" />
+                    </div>
+                </div>
+            </div>
+            <div class="form-group mt-4">
+                <MudButton ButtonType="@CurrentButtonType" Size="Size.Large" Color="Color.Primary" Variant="Variant.Filled" OnClick="ToggleEdit">
+                    @buttonText
+                </MudButton>
+                <button class="btn btn-link d-block mt-2 p-0" type="button" @onclick='() => navigationManager.NavigateTo("/roles")'>Back to the list</button>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter]
+    public string RoleId { get; set; } = string.Empty;
+
+    private ViewEditRoleDto viewEditRole = new ViewEditRoleDto();
+    private bool showNotification = false;
+    private MarkupString notificationMessage = default;
+    private bool isOperationSuccessful = false;
+    private bool isReadOnly = true;
+    private string buttonText = "Edit";
+
+    private Dictionary<string, object>? ReadOnlyAttributes => isReadOnly ? new Dictionary<string, object> { { "readonly", "readonly" } } : null;
+
+    private ButtonType CurrentButtonType => isReadOnly ? ButtonType.Button : ButtonType.Submit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        viewEditRole = await roleService.GetRoleByAsync(RoleId);
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        IdentityResult result = await roleService.UpdateRoleAsync(viewEditRole);
+
+        showNotification = true;
+        if (result.Succeeded)
+        {
+            isOperationSuccessful = true;
+            notificationMessage = new MarkupString("Role successfully updated. <a href='/roles'>Back to the list</a>");
+        }
+        else
+        {
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString(string.Join(". ", result.Errors.Select(e => e.Description)));
+        }
+    }
+
+    private void ToggleEdit()
+    {
+        isReadOnly = !isReadOnly && buttonText == "Edit";
+        buttonText = isReadOnly ? "Edit" : "Save";
+    }
+
+    private string GetIncidentClass()
+    {
+        return isOperationSuccessful ? "alert-success" : "alert-danger";
+    }
+}

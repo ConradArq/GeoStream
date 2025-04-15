@@ -1,0 +1,103 @@
+﻿<nav class="sidebar custom-sidebar sidebar-offcanvas" id="sidebar">
+    <ul class="nav flex-column">
+        <li class="nav-item">
+            <a class="nav-link" href="/">
+                <i class="ti-dashboard menu-icon"></i>
+                <span class="menu-title">Overview</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/monitoring">
+                <i class="ti-signal menu-icon"></i>
+                <span class="menu-title">Live Monitoring</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/incidents">
+                <i class="ti-alert menu-icon"></i>
+                <span class="menu-title">Incidents</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="/kpis">
+                <i class="ti-pie-chart menu-icon"></i>
+                <span class="menu-title">Analytics</span>
+            </a>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link collapsed" data-toggle="collapse" href="#configMenu" aria-expanded="false">
+                <i class="ti-settings menu-icon"></i>
+                <span class="menu-title">System Settings</span>
+                <i class="menu-arrow"></i>
+            </a>
+            <div class="collapse" id="configMenu">
+                <ul class="nav flex-column sub-menu">
+                    <li class="nav-item"><a class="nav-link" href="/hubs">Hubs</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/scanners">Scanners</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/routes">Routes</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/assets">Assets</a></li>
+                </ul>
+            </div>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link collapsed" data-toggle="collapse" href="#adminMenu" aria-expanded="false">
+                <i class="ti-lock menu-icon"></i>
+                <span class="menu-title">Admin Panel</span>
+                <i class="menu-arrow"></i>
+            </a>
+            <div class="collapse" id="adminMenu">
+                <ul class="nav flex-column sub-menu">
+                    <li class="nav-item"><a class="nav-link" href="/users">Users</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/roles">Roles</a></li>
+                </ul>
+            </div>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link" href="/reports">
+                <i class="ti-file menu-icon"></i>
+                <span class="menu-title">Report Center</span>
+            </a>
+        </li>
+    </ul>
+</nav>
+
+<style>
+    .custom-sidebar {
+        background-color: #1e2a38;
+        color: #ffffff;
+        min-height: 100vh;
+        padding-top: 1rem;
+    }
+
+        .custom-sidebar .nav-link {
+            color: #a9b7c6;
+            padding: 0.75rem 1.25rem;
+            transition: background 0.3s;
+        }
+
+            .custom-sidebar .nav-link:hover,
+            .custom-sidebar .nav-link:focus {
+                background-color: #2a3d4f;
+                color: #ffffff;
+            }
+
+        .custom-sidebar .menu-icon {
+            margin-right: 10px;
+            color: #70c1b3;
+        }
+
+        .custom-sidebar .menu-title {
+            font-weight: 500;
+        }
+
+        .custom-sidebar .menu-arrow {
+            margin-left: auto;
+        }
+
+        .custom-sidebar .sub-menu .nav-link {
+            padding-left: 2.5rem;
+        }
+</style>

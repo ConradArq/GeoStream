@@ -1,0 +1,315 @@
+﻿@page "/"
+@using Newtonsoft.Json
+@using System.Text
+@using Microsoft.AspNetCore.Authorization
+@using GeoStream.Dtos;
+@using GeoStream.Dtos.Configuration
+@using GeoStream.Dtos.Application
+@using GeoStream.Extensions
+@using GeoStream.Models.Enums
+@using GeoStream.Services
+@using GeoStream.RabbitMQMediator
+@using GeoStream.UIEventsMediator
+@inject IJSRuntime jSRuntime
+@inject IEventAggregator eventaggregator
+@inject IApiClient apiClient
+@attribute [Authorize]
+@implements IAsyncDisposable
+
+@* @using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+<CascadingAuthenticationState>
+    <AuthorizeView>
+        <Authorized>
+            <p>You are logged in.</p>
+            <!-- Your authenticated user content here -->
+        </Authorized>
+        <NotAuthorized>
+            <p>You are not logged in.</p>
+            <!-- Your non-authenticated user content here -->
+        </NotAuthorized>
+    </AuthorizeView>
+</CascadingAuthenticationState> *@
+
+
+<div class="content-wrapper">
+    <div class="row">
+        <div class="col-md-12 grid-margin">
+            <div class="row">
+                <div class="col-12 col-xl-5 mb-4 mb-xl-0">
+                    <h4 class="font-weight-bold">
+                        <i class="ti-location-arrow text-primary mr-2"></i>
+                        Live Geospatial Data & Signal Tracking
+                    </h4>
+                    <p class="dashboard-subtext">Visualize real-time incident trends and hub activity.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="MudBlazor.Severity.Error" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+    <MudGrid Justify="Justify.FlexStart">
+        <MudItem>
+            <MudButton Variant="Variant.Filled" Color="@(selectedIncidentStartDate == "lastMonth" ? Color.Error : Color.Default)"
+                       OnClick="@(() => OnSelectedIncidentStartDateButton("lastMonth"))">
+                Last Month
+            </MudButton>
+        </MudItem>
+        <MudItem>
+            <MudButton Variant="Variant.Filled" Color="@(selectedIncidentStartDate == "last24Hours" ? Color.Error : Color.Default)"
+                       OnClick="@(() => OnSelectedIncidentStartDateButton("last24Hours"))">
+                Last Day
+            </MudButton>
+        </MudItem>
+        <MudItem>
+            <MudButton Variant="Variant.Filled" Color="@(selectedIncidentStartDate == "lastHour" ? Color.Error : Color.Default)"
+                       OnClick="@(() => OnSelectedIncidentStartDateButton("lastHour"))">
+                Last Hour
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+    <br />
+    <div id="map">
+        @if (isLoading)
+        {
+            <div style="display: flex; justify-content: center; margin-top: 20px;">
+                <MudProgressCircular Color="Color.Primary" Indeterminate="true" Style="margin-left: 10px;" />
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private MarkupString notificationMessage = default;
+    private List<HubDto> hubs = new List<HubDto>();
+    private List<IncidentDto> incidents = new List<IncidentDto>();
+    private List<RouteDto> routes = new List<RouteDto>();
+    private Task<ApiResponseDto<List<RouteDto>>>? getAllRouteResultTask;
+    private List<AssetDto> assets = new List<AssetDto>();
+    private Task<ApiResponseDto<List<AssetDto>>>? getAllAssetResultTask;
+    private string selectedIncidentStartDate = "lastHour";
+    private bool selectedIncidentStartDateButton = false;
+    private bool isApiCalled = false;
+    private bool jsInitializing = false;
+    private bool isComponentRendered = false;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (isComponentRendered)
+        {
+            try
+            {
+                await jSRuntime.InvokeVoidAsync("disposeLeafletMap");
+            }
+            catch (Exception e)
+            {
+
+            }
+            finally
+            {
+                eventaggregator.Unsubscribe<EmitterStoredNotification>(OnEmitterStoredEvent);
+                //eventaggregator.Unsubscribe<ScannerConnectionStateNotification>(OnScannerConnectionStateEvent);
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        getAllRouteResultTask = apiClient.SendRequest<ApiResponseDto<List<RouteDto>>>("ScannersApi.Route.Search", new { StatusId = Status.Active });
+        getAllAssetResultTask = apiClient.SendRequest<ApiResponseDto<List<AssetDto>>>("ScannersApi.Asset.Search", new { StatusId = Status.Active });
+        var getAllHubResult = await apiClient.SendRequest<ApiResponseDto<List<HubDto>>>("ScannersApi.Hub.Search", new { StatusId = Status.Active });
+        var getAllAssetResult = await apiClient.SendRequest<ApiResponseDto<List<AssetDto>>>("ScannersApi.Asset.Search", new { StatusId = Status.Active });
+
+        if (getAllHubResult.Succeeded && getAllHubResult.Data != null && getAllAssetResult.Succeeded)
+        {
+            if (getAllHubResult.Data.Count() > 0)
+            {
+                hubs = getAllHubResult.Data;
+                await RefreshIncidents(selectedIncidentStartDate);
+            }
+        }
+        else
+        {
+            await ShowNotification($"Error retrieving the data from the API.");
+        }
+
+        isApiCalled = true;
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            eventaggregator.Subscribe<EmitterStoredNotification>(OnEmitterStoredEvent);
+            //eventaggregator.Subscribe<ScannerConnectionStateNotification>(OnScannerConnectionStateEvent);
+            isComponentRendered = true;
+        }
+
+        if (isApiCalled && !jsInitializing)
+        {
+            jsInitializing = true;
+
+            if (getAllRouteResultTask != null)
+            {
+                var getAllRouteResult = await getAllRouteResultTask;
+
+                if (getAllRouteResult.Succeeded && getAllRouteResult.Data != null)
+                {
+                    if (getAllRouteResult.Data.Count() > 0)
+                    {
+                        routes = getAllRouteResult.Data;
+                    }
+                }
+                else
+                {
+                    await ShowNotification($"Error retrieving routes from the API.");
+                }
+            }
+
+            //Once the DOM is ready we initialize Leaflet map with data pulled from API during the component's initialization
+            await jSRuntime.InvokeVoidAsync("initializeLeafletMapWhenReady", hubs, incidents, routes);
+
+            isLoading = false;
+        }
+        if (selectedIncidentStartDateButton)
+        {
+            await SafeInvokeJSVoidAsync("RefreshIncidentsInLeafletMap", incidents);
+            selectedIncidentStartDateButton = false;
+        }
+    }
+
+    private async Task OnSelectedIncidentStartDateButton(string startDateCodeWord)
+    {
+        await RefreshIncidents(startDateCodeWord);
+        selectedIncidentStartDateButton = true;
+    }
+
+    //Populates IncidentDto with incidents registered after a given date by calling the API
+    private async Task RefreshIncidents(string startDateCodeWord)
+    {
+        selectedIncidentStartDate = startDateCodeWord;
+        DateTime startDate = DateTime.Now.InTimeZone();
+
+        switch (startDateCodeWord)
+        {
+            case "lastMonth":
+                startDate = startDate.AddDays(-30);
+                break;
+            case "last24Hours":
+                startDate = startDate.AddDays(-1);
+                break;
+            case "lastHour":
+                startDate = startDate.AddHours(-1);
+                break;
+        }
+
+        var getAllIncidentEmitterSinceResult = await apiClient.SendRequest<ApiResponseDto<List<IncidentDto>>>("ScannersApi.Rag.GetAllIncidentsSince", queryParams: new Dictionary<string, string> { { "fromUtc", startDate.ToString("o") } });
+
+
+        if (getAllIncidentEmitterSinceResult.Succeeded && getAllIncidentEmitterSinceResult.Data != null)
+        {
+            incidents = getAllIncidentEmitterSinceResult.Data;
+
+            //Get all assets to set assetId in incidents collection
+            await LazyLoadAssets();
+            incidents.ForEach(a =>
+            {
+                var asset = assets.FirstOrDefault(v => a.AssetCode == v.Code);
+                if (asset != null)
+                {
+                    a.AssetId = asset.Id;
+                }
+            });
+        }
+        else
+        {
+            await InvokeAsync(async () =>
+            {
+                await ShowNotification($"Error retrieving the incidents.");
+            });
+        }
+    }
+
+    private async Task LazyLoadAssets()
+    {
+        if (getAllAssetResultTask == null)
+        {
+            getAllAssetResultTask = apiClient.SendRequest<ApiResponseDto<List<AssetDto>>>("ScannersApi.Asset.GetAll");
+        }
+
+        var getAllAssetResult = await getAllAssetResultTask;
+
+        if (getAllAssetResult.Succeeded && getAllAssetResult.Data?.Count > 0)
+        {
+            assets = getAllAssetResult.Data;
+        }
+        else if (!getAllAssetResult.Succeeded)
+        {
+            await ShowNotification("Error retrieving the data from the API.");
+        }
+    }
+
+    private async void OnEmitterStoredEvent(EmitterStoredNotification emitterStoredNotification)
+    {
+        if (emitterStoredNotification.emitterStoredLog.IncidentTypes.Count() > 0)
+        {
+            await LazyLoadAssets();
+            var asset = assets.FirstOrDefault(v => emitterStoredNotification.emitterStoredLog.AssetCode == v.Code);
+
+            await InvokeAsync(async () =>
+            {
+                await SafeInvokeJSVoidAsync("AddIncidentToLeafletMap", emitterStoredNotification.emitterStoredLog.AssetCode, asset?.Id ?? 0, emitterStoredNotification.emitterStoredLog.IncidentTypes.Contains(Dtos.Enums.IncidentType.UnexpectedStop), emitterStoredNotification.emitterStoredLog.IncidentTypes.Contains(Dtos.Enums.IncidentType.IdleTooLong), emitterStoredNotification.emitterStoredLog.IncidentTypes.Contains(Dtos.Enums.IncidentType.EarlyDeparture), emitterStoredNotification.emitterStoredLog.ReadTimestamp, emitterStoredNotification.emitterStoredLog.HubCode, emitterStoredNotification.emitterStoredLog.ScannerCode);
+            });
+        }
+    }
+
+    private async void OnScannerConnectionStateEvent(ScannerConnectionStateNotification ScannerConnectionStateNotification)
+    {
+        await InvokeAsync(async () =>
+        {
+            await SafeInvokeJSVoidAsync("ChangeScannerConnectionStateInLeafletMap", ScannerConnectionStateNotification.ScannerConnectionStateLog.ScannerCode, ScannerConnectionStateNotification.ScannerConnectionStateLog.IsConnected);
+        });
+    }
+
+    private async Task SafeInvokeJSVoidAsync(string methodName, params object[] args)
+    {
+        try
+        {
+            await jSRuntime.InvokeVoidAsync(methodName, args);
+        }
+        catch (JSDisconnectedException)
+        {
+            Console.WriteLine("Waiting to retry JavaScript call...");
+            await Task.Delay(1000);
+            try
+            {
+                await jSRuntime.InvokeVoidAsync(methodName, args);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("JavaScript call failed after retry: " + ex.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("JavaScript call failed: " + ex.Message);
+        }
+    }
+
+    private async Task ShowNotification(string msg, bool temporary = false)
+    {
+        notificationMessage = new MarkupString(msg);
+        StateHasChanged();
+        if (temporary)
+        {
+            await Task.Delay(5000);
+            notificationMessage = default;
+        }
+    }
+}

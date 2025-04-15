@@ -1,0 +1,183 @@
+﻿@page "/users"
+@using Microsoft.AspNetCore.Authorization
+@using GeoStream.Dtos.Administration.Users
+@using GeoStream.Services
+@using GeoStream.Models.Enums
+@inject IUserService userService
+@inject NavigationManager navigationManager
+@attribute [Authorize]
+
+<div class="content-wrapper">
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="MudBlazor.Severity.Error" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+    <MudGrid>
+        <MudItem xs="12" sm="6">
+        </MudItem>
+        <MudItem xs="12" sm="6" Class="d-flex justify-content-end">
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => navigationManager.NavigateTo("/users/new"))">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />Add User
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+    <MudPaper Class="mt-3">
+        <MudTable Items="@users" Dense="true" Hover="true" Striped="true" Bordered="true">
+            <ToolBarContent>
+                <MudText Typo="Typo.h6"><MudIcon Icon="@Icons.Material.Filled.People" Style="color: #2196F3;" /> Users</MudText>
+                <MudSpacer />
+                <MudTextField Value="@searchString" Immediate="true" ValueChanged="@((string newValue) => OnSearchTextChanged(newValue))" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+            </ToolBarContent>
+            <HeaderContent>
+                <MudTh><MudTableSortLabel SortBy="new Func<UserDto, object>(x=>x.FullName)">Name</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<UserDto, object>(x=>x.Email)">Email</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<UserDto, object>(x=>x.Role)">Role</MudTableSortLabel></MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Action</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Name">@context.FullName</MudTd>
+                <MudTd DataLabel="Email">@context.Email</MudTd>
+                <MudTd DataLabel="Role">@context.Role</MudTd>
+                <MudTd DataLabel="State">
+                    @switch (context.StatusId)
+                    {
+                        case (int)Status.Active:
+                            <MudChip Color="Color.Success" OnClick="@(()=> ToggleState(context.Id, context.StatusId))">Active</MudChip>
+                            break;
+                        case (int)Status.Inactive:
+                            <MudChip Color="Color.Error" OnClick="@(()=> ToggleState(context.Id, context.StatusId))">Inactive</MudChip>
+                            break;
+                        default:
+                            <MudChip Color="Color.Dark">Unknown</MudChip>
+                            break;
+                    }
+                </MudTd>
+                <MudTd DataLabel="Action">
+                    <div style="white-space:nowrap">
+                        <MudIconButton Icon="@Icons.Material.Filled.Search" OnClick="@(()=> navigationManager.NavigateTo($"/users/{context.Id}"))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" OnClick="@(()=> DeleteUser(context.Id))" />
+                    </div>
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager RowsPerPageString="No. of rows per page" InfoFormat="{first_item}-{last_item} of {all_items}" />
+            </PagerContent>
+        </MudTable>
+    </MudPaper>
+</div>
+
+@code {
+    private MarkupString notificationMessage = default;
+    private bool showNotification = false;
+
+    private string searchString = "";
+
+    private int totalItems;
+    private int currentPage = 1;
+    private const int pageSize = 10;
+
+    private List<UserDto> users;
+    private List<UserDto> allUsers;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            allUsers = await userService.GetAllUsersAsync();
+            users = allUsers.ToList();
+
+            if (!users.Any())
+            {
+                await ShowNotification($"No users have been registered.");
+            }
+        }
+        catch
+        {
+            await ShowNotification($"Error retrieving the users from the database.");
+        }
+    }
+
+    private void OnSearchTextChanged(string newValue)
+    {
+        searchString = newValue;
+        currentPage = 1;
+
+        FilterUsers();
+    }
+
+    private void FilterUsers()
+    {
+        if (!string.IsNullOrWhiteSpace(searchString))
+        {
+            users = allUsers.Where(user =>
+                user.FullName.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
+                user.Email.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
+                user.Role.Contains(searchString, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+        else
+        {
+            users = allUsers.ToList();
+        }
+    }
+
+    private async Task DeleteUser(string userId)
+    {
+        var result = await userService.DeleteUserAsync(userId);
+        if (result.Succeeded)
+        {
+            users.RemoveAll(x => x.Id == userId);
+        }
+        else
+        {
+            await ShowNotification(string.Join("; ", result.Errors.Select(e => e.Description)), true);
+        }
+    }
+
+    private async Task ToggleState(string userId, int stateId)
+    {
+        var user = users.Find(x => x.Id == userId);
+
+        if (user != null)
+        {
+            ViewEditUserDto viewEditUserDto = new ViewEditUserDto() { Id = user.Id, StatusId = stateId };
+
+            @switch (viewEditUserDto.StatusId)
+            {
+                case (int)Status.Active:
+                    viewEditUserDto.StatusId = (int)Status.Inactive;
+                    break;
+                case (int)Status.Inactive:
+                    viewEditUserDto.StatusId = (int)Status.Active;
+                    break;
+                default:
+                    break;
+            }
+
+            var result = await userService.UpdateUserAsync(viewEditUserDto, true);
+
+            if (result.Succeeded)
+            {
+                user.StatusId = viewEditUserDto.StatusId;
+            }
+            else
+            {
+                await ShowNotification(string.Join("; ", result.Errors.Select(e => e.Description)), true);
+            }
+        }
+    }
+
+    private async Task ShowNotification(string msg, bool temporary = false)
+    {
+        notificationMessage = new MarkupString(msg);
+        StateHasChanged();
+        if (temporary)
+        {
+            await Task.Delay(5000);
+            notificationMessage = default;
+        }
+    }
+}

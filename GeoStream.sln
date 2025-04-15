@@ -1,0 +1,49 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34622.214
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GeoStream", "GeoStream\GeoStream.csproj", "{7AC15483-99CD-4539-B576-BC60F3A02DFF}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TelemetryService", "TelemetryService\TelemetryService.csproj", "{CD8E5174-A5EC-465A-BF1D-F573BF3355D9}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TelemetryService.Tests", "TelemetryService.Tests\TelemetryService.Tests.csproj", "{E4881509-9937-4568-A580-B57A9AA2257E}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MessageProcessorService", "MessageProcessorService\MessageProcessorService.csproj", "{9D3EBF35-3196-4E8F-AAF4-BE1EA786B965}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeoStream.Api", "GeoStream.Api\GeoStream.Api.csproj", "{FC527A13-A88C-4B1E-B65B-808ABE29207C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7AC15483-99CD-4539-B576-BC60F3A02DFF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7AC15483-99CD-4539-B576-BC60F3A02DFF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7AC15483-99CD-4539-B576-BC60F3A02DFF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7AC15483-99CD-4539-B576-BC60F3A02DFF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CD8E5174-A5EC-465A-BF1D-F573BF3355D9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CD8E5174-A5EC-465A-BF1D-F573BF3355D9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CD8E5174-A5EC-465A-BF1D-F573BF3355D9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CD8E5174-A5EC-465A-BF1D-F573BF3355D9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E4881509-9937-4568-A580-B57A9AA2257E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E4881509-9937-4568-A580-B57A9AA2257E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E4881509-9937-4568-A580-B57A9AA2257E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E4881509-9937-4568-A580-B57A9AA2257E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9D3EBF35-3196-4E8F-AAF4-BE1EA786B965}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9D3EBF35-3196-4E8F-AAF4-BE1EA786B965}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9D3EBF35-3196-4E8F-AAF4-BE1EA786B965}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9D3EBF35-3196-4E8F-AAF4-BE1EA786B965}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FC527A13-A88C-4B1E-B65B-808ABE29207C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FC527A13-A88C-4B1E-B65B-808ABE29207C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FC527A13-A88C-4B1E-B65B-808ABE29207C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FC527A13-A88C-4B1E-B65B-808ABE29207C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {6DADB471-C916-476C-9C76-EA248FFDCFD8}
+	EndGlobalSection
+EndGlobal

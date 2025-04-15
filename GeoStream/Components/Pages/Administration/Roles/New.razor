@@ -1,0 +1,74 @@
+﻿@page "/roles/new"
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using GeoStream.Dtos.Administration.Roles
+@using GeoStream.Services
+@using GeoStream.Models.Enums
+@inject IJSRuntime jSRuntime
+@inject IRoleService roleService
+@inject NavigationManager navigationManager
+@attribute [Authorize]
+
+<EditForm Model="@newRole" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="@(GetIncidentSeverity())" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.h4" Class="text-primary">Register new role</MudText>
+            <MudGrid>
+                <MudItem xs="12" sm="12" Class="my-2">
+                    <MudTextField Label="Name" @bind-Value="newRole.Name" FullWidth="true" Placeholder="Enter the role name" />
+                    <ValidationMessage For="@(() => newRole.Name)" Class="text-danger" />
+                </MudItem>            
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    <MudCardActions Class="my-6">
+        <MudButton ButtonType="ButtonType.Submit" Size="Size.Large" Color="Color.Primary" Variant="Variant.Filled">
+            Save
+        </MudButton>
+        <MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Color="Color.Primary" OnClick='() => navigationManager.NavigateTo("/roles")'>
+            Back to the list
+        </MudButton>
+    </MudCardActions>
+</EditForm>
+
+@code {
+
+    private bool showNotification = false;
+    private MarkupString notificationMessage = default;
+    private bool isOperationSuccessful = false;
+    private NewRoleDto newRole = new NewRoleDto();
+
+    private async Task HandleValidSubmit()
+    {
+        IdentityResult result = await roleService.CreateRoleAsync(newRole);
+
+        showNotification = true;
+        if (result.Succeeded)
+        {
+            isOperationSuccessful = true;
+            notificationMessage = new MarkupString("Role successfully registered.");
+            newRole = new NewRoleDto();
+        }
+        else
+        {
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString(string.Join(". ", result.Errors.Select(e => e.Description)));
+        }
+    }
+
+    private MudBlazor.Severity GetIncidentSeverity()
+    {
+        return isOperationSuccessful ? MudBlazor.Severity.Success : MudBlazor.Severity.Error;
+    }
+}

@@ -1,0 +1,117 @@
+﻿@page "/scanners/{ScannerId}"
+
+@using Microsoft.AspNetCore.Authorization
+@using GeoStream.Dtos
+@using GeoStream.Dtos.Configuration
+@using GeoStream.Dtos.Dependencies
+@using GeoStream.Dtos.Enums
+@using GeoStream.Extensions
+@using GeoStream.Services
+@inject IApiClient apiClient
+@inject NavigationManager navigationManager
+
+@attribute [Authorize]
+
+<EditForm Model="@scannerDto" OnValidSubmit="HandleValidSubmit" style="width:100%">
+    <DataAnnotationsValidator />
+
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="@(GetIncidentSeverity())" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.h4" Class="text-primary">Scanner Details</MudText>
+
+            <MudGrid Class="mt-4">
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Code" @bind-Value="scannerDto.Code" FullWidth="true" Placeholder="Enter scanner code" Disabled="@isReadOnly" />
+                    <ValidationMessage For="@(() => scannerDto.Code)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Lane destination" @bind-Value="scannerDto.LaneDestination" FullWidth="true" Placeholder="Enter lane destination" Disabled="@isReadOnly" />
+                    <ValidationMessage For="@(() => scannerDto.LaneDestination)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Lane direction (°)" @bind-Value="scannerDto.LaneDirectionDegrees" FullWidth="true" Placeholder="Enter lane direction in degrees" Disabled="@isReadOnly" />
+                    <ValidationMessage For="@(() => scannerDto.LaneDirectionDegrees)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Class="long-label" Label="Waiting interval (in minutes) before registering the same Emitter again" @bind-Value="scannerDto.EmitterReadingIntervalInMinutes" FullWidth="true" Placeholder="Enter interval" Disabled="@isReadOnly" />
+                    <ValidationMessage For="@(() => scannerDto.EmitterReadingIntervalInMinutes)" Class="text-danger" />
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    <MudCardActions Class="my-6">
+        <MudButton ButtonType="@CurrentButtonType" Size="Size.Large" Color="Color.Primary" Variant="Variant.Filled" OnClick="ToggleEdit">
+            @buttonText
+        </MudButton>
+        <MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Color="Color.Primary" OnClick='() => navigationManager.NavigateTo("/scanners")'>
+            Back to the list
+        </MudButton>
+    </MudCardActions>
+</EditForm>
+
+@code {
+    [Parameter]
+    public string ScannerId { get; set; } = string.Empty;
+
+    private ScannerDto scannerDto = new ScannerDto();
+
+    private MarkupString notificationMessage = default;
+    private bool isOperationSuccessful = false;
+    private bool isReadOnly = true;
+    private bool buttonIsReadOnly = false;
+    private string buttonText = "Edit";
+    private int? hubId;
+
+    private ButtonType CurrentButtonType => isReadOnly ? ButtonType.Button : ButtonType.Submit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var response = await apiClient.SendRequest<ApiResponseDto<ScannerDto>>("ScannersApi.Scanner.Get", null, new Dictionary<string, string> { { "id", ScannerId } });
+
+        if (response.Succeeded && response.Data != null)
+        {
+            scannerDto = response.Data;
+        }
+        else
+        {
+            buttonIsReadOnly = true;
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString(string.Join(". ", response.Errors ?? new List<string> { "Error." }));
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        var response = await apiClient.SendRequest<ApiResponseDto<ScannerDto>>("ScannersApi.Scanner.Update", scannerDto, new Dictionary<string, string> { { "id", ScannerId } });
+
+        if (response.Succeeded)
+        {
+            isOperationSuccessful = true;
+            notificationMessage = new MarkupString("Scanner successfully updated.");
+        }
+        else
+        {
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString(string.Join(". ", response.Errors ?? new List<string> { "Error." }));
+        }
+    }
+
+    private void ToggleEdit()
+    {
+        isReadOnly = !isReadOnly && buttonText == "Edit";
+        buttonText = isReadOnly ? "Edit" : "Save";
+    }
+
+    private MudBlazor.Severity GetIncidentSeverity()
+    {
+        return isOperationSuccessful ? MudBlazor.Severity.Success : MudBlazor.Severity.Error;
+    }
+}

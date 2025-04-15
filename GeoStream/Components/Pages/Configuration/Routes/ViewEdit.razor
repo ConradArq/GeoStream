@@ -1,0 +1,244 @@
+﻿@page "/routes/{RouteId}"
+
+@using Microsoft.AspNetCore.Authorization
+@using GeoStream.Dtos
+@using GeoStream.Dtos.Configuration
+@using GeoStream.Dtos.Dependencies
+@using GeoStream.Dtos.Enums
+@using GeoStream.Models.Enums
+@using GeoStream.Extensions
+@using GeoStream.Services
+@attribute [Authorize]
+@inject IApiClient apiClient
+@inject NavigationManager navigationManager
+@inject IConfiguration configuration
+@inject IJSRuntime jSRuntime
+@inject IKmzConversionService kmzConversionService
+@implements IAsyncDisposable
+
+<EditForm Model="@routeDto" OnValidSubmit="HandleValidSubmit" style="width:100%">
+    <DataAnnotationsValidator />
+
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="@(GetIncidentSeverity())" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.h4" Class="text-primary">Route Details</MudText>
+
+            <MudGrid Class="mt-4">
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudSelect Placeholder="Select type of route" T="TypeOfRoute?" Label="Type of route" @bind-Value="routeDto.TypeOfRoute" FullWidth="true" Disabled="@isReadOnly">
+                        @foreach (var route in Enum.GetValues(typeof(TypeOfRoute)).Cast<TypeOfRoute>())
+                        {
+                            <MudSelectItem Value="@(route as TypeOfRoute?)">
+                                @route.GetDisplayName()
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                    <ValidationMessage For="@(() => routeDto.TypeOfRoute)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Name" @bind-Value="routeDto.Name" FullWidth="true" Placeholder="Enter the route name" Disabled="@isReadOnly" />
+                    <ValidationMessage For="@(() => routeDto.Name)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Description" @bind-Value="routeDto.Description" FullWidth="true" Placeholder="Enter the route description" Disabled="@isReadOnly" />
+                    <ValidationMessage For="@(() => routeDto.Description)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudFileUpload T="IBrowserFile" Accept=".kmz" FilesChanged="UploadKmzFile" Disabled="@isReadOnly">
+                        <ButtonTemplate Context="uploadContext">
+                            <MudButton HtmlTag="label"
+                            Variant="Variant.Filled"
+                            Color="Color.Primary"
+                            StartIcon="@Icons.Material.Filled.CloudUpload"
+                            for="@uploadContext.Id">
+                                Route (KMZ)
+                            </MudButton>
+                        </ButtonTemplate>
+                    </MudFileUpload>
+                    <ValidationMessage For="@(() => routeDto.KmzFile)" Class="text-danger" />
+                    @if (routeDto.KmzFile != null && routeDto.KmzFile.Length > 0)
+                    {
+                        <div style="background-color: @routeDto.Color; border-radius: 4px; display: inline-block; padding: 4px 8px; margin-top:10px;">
+                            <MudText Typo="Typo.body1" style="color: white;">
+                                <MudIcon Icon="@Icons.Material.Filled.AttachFile" Class="mr-1" />
+                                @if (uploadedKmzFileName == null)
+                                {
+                                    <a href="@GetDownloadKmzFileUrl(routeDto.Id)" style="color: white; text-decoration: none;">
+                                        @string.Concat(routeDto.Name, ".kmz")
+                                    </a>
+                                }
+                                else
+                                {
+                                    @uploadedKmzFileName
+                                }
+                            </MudText>
+                        </div>
+                    }
+                </MudItem>
+                <MudItem xs="12" sm="8" Class="my-2">
+                    <MudCard>
+                        <MudCardContent Class="mt-0 pt-2">
+                            <div id="map" style="height: 400px; width: 100%;"></div>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    <MudCardActions Class="my-6">
+        <MudButton ButtonType="@CurrentButtonType" Size="Size.Large" Color="Color.Primary" Variant="Variant.Filled" OnClick="ToggleEdit">
+            @buttonText
+        </MudButton>
+        <MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Color="Color.Primary" OnClick='() => navigationManager.NavigateTo("/routes")'>
+            Back to the list
+        </MudButton>
+    </MudCardActions>
+</EditForm>
+
+@code {
+    [Parameter]
+    public string RouteId { get; set; } = string.Empty;
+
+    private RouteDto routeDto = new RouteDto();
+
+    private MarkupString notificationMessage = default;
+    private bool isOperationSuccessful = false;
+    private bool isReadOnly = true;
+    private bool buttonIsReadOnly = false;
+    private string buttonText = "Edit";
+    private string? uploadedKmzFileName = null;
+
+    private ButtonType CurrentButtonType => isReadOnly ? ButtonType.Button : ButtonType.Submit;
+
+    private Task<ApiResponseDto<List<HubDto>>>? getAllHubsResponseTask;
+    private List<HubDto> hubs = new List<HubDto>();
+    private bool isApiCalled = false;
+    private bool jsInitializing = false;
+    private bool isComponentRendered = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var response = await apiClient.SendRequest<ApiResponseDto<RouteDto>>("ScannersApi.Route.Get", null, new Dictionary<string, string> { { "id", RouteId } });
+
+        if (response.Succeeded && response.Data != null)
+        {
+            routeDto = response.Data;
+        }
+        else
+        {
+            buttonIsReadOnly = true;
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString(string.Join(". ", response.Errors ?? new List<string> { "Error." }));
+        }
+
+        getAllHubsResponseTask = apiClient.SendRequest<ApiResponseDto<List<HubDto>>>("ScannersApi.Hub.Search", new { StatusId = Status.Active });
+
+        isApiCalled = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            isComponentRendered = true;
+        }
+
+        //Variables to prevent double initialization and javascript errors
+        if (isApiCalled && !jsInitializing)
+        {
+            jsInitializing = true;
+
+            if (getAllHubsResponseTask != null)
+            {
+                var getAllHubsResponse = await getAllHubsResponseTask;
+
+                if (getAllHubsResponse.Succeeded && getAllHubsResponse.Data != null)
+                {
+                    if (getAllHubsResponse.Data.Count() > 0)
+                    {
+                        hubs = getAllHubsResponse.Data;
+                    }
+                }
+                else
+                {
+                    notificationMessage = new MarkupString(string.Concat(notificationMessage.Value, "Failed to load the hubs from the API. "));
+                }
+            }
+
+            await jSRuntime.InvokeVoidAsync("initializeLeafletMapWhenReady", hubs, new List<IncidentDto>(), new List<RouteDto> { routeDto }, false);
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        var response = await apiClient.SendRequest<ApiResponseDto<RouteDto>>("ScannersApi.Route.Update", routeDto, new Dictionary<string, string> { { "id", RouteId } });
+
+        if (response.Succeeded)
+        {
+            isOperationSuccessful = true;
+            notificationMessage = new MarkupString("Route successfully updated.");
+        }
+        else
+        {
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString(string.Join(". ", response.Errors ?? new List<string> { "Error." }));
+        }
+    }
+
+    private async Task UploadKmzFile(IBrowserFile file)
+    {
+        if (file != null)
+        {
+            uploadedKmzFileName = file.Name;
+            var buffer = new byte[file.Size];
+            await file.OpenReadStream().ReadAsync(buffer);
+            routeDto.KmzFile = buffer;
+
+            var geoJsonRoute = kmzConversionService.ConvertKmzToGeoJson(routeDto.KmzFile);
+            if (string.IsNullOrEmpty(routeDto.Name))
+            {
+                routeDto.Name = geoJsonRoute.routeName;
+            }
+            routeDto.GeoJson = geoJsonRoute.geoJsonContent;
+            await jSRuntime.InvokeVoidAsync("updateRoutes", new List<RouteDto>() { routeDto });
+        }
+    }
+
+    private string GetDownloadKmzFileUrl(long routeId)
+    {
+        var baseUrl = configuration["ExternalApis:ScannersApi:BaseUrl"];
+        var routePath = configuration["ExternalApis:ScannersApi:Endpoints:Route:Path"];
+        var downloadKmzFilePath = configuration["ExternalApis:ScannersApi:Endpoints:Route:Actions:DownloadKmzFile:Path"];
+
+        var downloadUrl = $"{baseUrl}{routePath}{downloadKmzFilePath}?routeId={routeId}";
+
+        return downloadUrl;
+    }
+
+    private void ToggleEdit()
+    {
+        isReadOnly = !isReadOnly && buttonText == "Edit";
+        buttonText = isReadOnly ? "Edit" : "Save";
+    }
+
+    private MudBlazor.Severity GetIncidentSeverity()
+    {
+        return isOperationSuccessful ? MudBlazor.Severity.Success : MudBlazor.Severity.Error;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (isComponentRendered)
+        {
+            await jSRuntime.InvokeVoidAsync("disposeLeafletMap");
+        }
+    }
+}

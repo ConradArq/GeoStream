@@ -1,0 +1,282 @@
+﻿@page "/routes/new"
+
+@using Microsoft.AspNetCore.Authorization
+@using GeoStream.Dtos
+@using GeoStream.Dtos.Configuration
+@using GeoStream.Dtos.Dependencies
+@using GeoStream.Dtos.Enums
+@using GeoStream.Extensions
+@using GeoStream.Models.Enums
+@using GeoStream.Services
+@attribute [Authorize]
+@inject IApiClient apiClient
+@inject NavigationManager navigationManager
+@inject IJSRuntime jSRuntime
+@inject IKmzConversionService kmzConversionService
+@implements IAsyncDisposable
+
+<EditForm Model="@routeDto" OnValidSubmit="HandleValidSubmit" style="width:100%">
+    <DataAnnotationsValidator />
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="@(GetIncidentSeverity())" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.h4" Class="text-primary">Register new route</MudText>
+
+            <MudGrid Class="mt-4">
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudSelect Placeholder="Select type of route" T="TypeOfRoute?" Label="Type of route" @bind-Value="routeDto.TypeOfRoute" FullWidth="true">
+                        @foreach (var route in Enum.GetValues(typeof(TypeOfRoute)).Cast<TypeOfRoute>())
+                        {
+                            <MudSelectItem Value="@(route as TypeOfRoute?)">
+                                @route.GetDisplayName()
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                    <ValidationMessage For="@(() => routeDto.TypeOfRoute)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Name" @bind-Value="routeDto.Name" FullWidth="true" Placeholder="Enter the route name" />
+                    <ValidationMessage For="@(() => routeDto.Name)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Description" @bind-Value="routeDto.Description" FullWidth="true" Placeholder="Enter the route description" />
+                    <ValidationMessage For="@(() => routeDto.Description)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudFileUpload T="IBrowserFile" Accept=".kmz" FilesChanged="UploadKmzFile">
+                        <ButtonTemplate Context="uploadContext">
+                            <MudButton HtmlTag="label"
+                                       Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.CloudUpload"
+                                       for="@uploadContext.Id">
+                                Route (KMZ)
+                            </MudButton>
+                        </ButtonTemplate>
+                    </MudFileUpload>
+                    <ValidationMessage For="@(() => routeDto.KmzFile)" Class="text-danger" />
+                    @if (routeDto.KmzFile != null && routeDto.KmzFile.Length > 0)
+                    {
+                        <div style="background-color: @routeDto.Color; border-radius: 4px; display: inline-block; padding: 4px 8px; margin-top:10px;">
+                            <MudText Typo="Typo.body1" style="color: white;">
+                                <MudIcon Icon="@Icons.Material.Filled.AttachFile" Class="mr-1" />
+                                @(uploadedKmzFileName ?? string.Concat(routeDto.Name, ".kmz"))
+                            </MudText>
+                        </div>
+                    }
+                </MudItem>
+                <MudItem xs="12" sm="8" Class="my-2">
+                    <MudCard>
+                        <MudCardContent Class="mt-0 pt-2">
+                            <div id="map" style="height: 400px; width: 100%;"></div>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+
+    <MudCardActions Class="my-6">
+        <MudButton ButtonType="ButtonType.Submit" Size="Size.Large" Color="Color.Primary" Variant="Variant.Filled">
+            Save
+        </MudButton>
+        <MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Color="Color.Primary" OnClick='() => navigationManager.NavigateTo("/routes")'>
+            Back to the list
+        </MudButton>
+    </MudCardActions>
+</EditForm>
+
+@code {
+    private RouteDto routeDto = new RouteDto();
+    private MarkupString notificationMessage = default;
+    private bool isOperationSuccessful = false;
+    private string? uploadedKmzFileName = null;
+
+    private Task<ApiResponseDto<List<HubDto>>>? getAllHubsResponseTask;
+    private List<HubDto> hubs = new List<HubDto>();
+    private bool isApiCalled = false;
+    private bool jsInitializing = false;
+    private bool isComponentRendered = false;
+
+    protected override void OnInitialized()
+    {
+        getAllHubsResponseTask = apiClient.SendRequest<ApiResponseDto<List<HubDto>>>("ScannersApi.Hub.Search", new { StatusId = Status.Active});
+
+        isApiCalled = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            isComponentRendered = true;
+        }
+
+        //Variables to prevent double initialization and javascript errors
+        if (isApiCalled && !jsInitializing)
+        {
+            jsInitializing = true;
+
+            if (getAllHubsResponseTask != null)
+            {
+                var getAllHubsResponse = await getAllHubsResponseTask;
+
+                if (getAllHubsResponse.Succeeded)
+                {
+                    if (getAllHubsResponse.Data != null && getAllHubsResponse.Data.Count() > 0)
+                    {
+                        hubs = getAllHubsResponse.Data;
+                    }
+                }
+                else
+                {
+                    notificationMessage = new MarkupString(string.Concat(notificationMessage.Value, "Failed to load the hubs from the API."));
+                }
+            }
+
+            await jSRuntime.InvokeVoidAsync("initializeLeafletMapWhenReady", hubs, new List<IncidentDto>(), new List<RouteDto>(), false);
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        var response = await apiClient.SendRequest<ApiResponseDto<RouteDto>>("ScannersApi.Route.Create", routeDto);
+
+        if (response.Succeeded)
+        {
+            isOperationSuccessful = true;
+            notificationMessage = new MarkupString("Route successfully registered.");
+            routeDto = new RouteDto();
+
+            await jSRuntime.InvokeVoidAsync("disposeLeafletMap");
+            jsInitializing = false;
+        }
+        else
+        {
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString(string.Join(". ", response.Errors ?? new List<string> { "Error." }));
+        }
+    }
+
+    private async Task UploadKmzFile(IBrowserFile file)
+    {
+        if (file != null)
+        {
+            uploadedKmzFileName = file.Name;
+            var buffer = new byte[file.Size];
+            await file.OpenReadStream().ReadAsync(buffer);
+            routeDto.KmzFile = buffer;
+
+            var geoJsonRoute = kmzConversionService.ConvertKmzToGeoJson(routeDto.KmzFile);
+            if (string.IsNullOrEmpty(routeDto.Name))
+            {
+                routeDto.Name = geoJsonRoute.routeName;
+            }
+            routeDto.GeoJson = geoJsonRoute.geoJsonContent;
+            routeDto.Color = await GenerateUniqueColorAsync();
+
+            await jSRuntime.InvokeVoidAsync("updateRoutes", new List<RouteDto>() { routeDto });
+        }
+    }
+    
+    private MudBlazor.Severity GetIncidentSeverity()
+    {
+        return isOperationSuccessful ? MudBlazor.Severity.Success : MudBlazor.Severity.Error;
+    }
+
+    private string GetIncidentClass()
+    {
+        return isOperationSuccessful ? "alert-success" : "alert-danger";
+    }
+
+    private async Task<string> GenerateUniqueColorAsync()
+    {
+        Random random = new Random();
+        List<string> existingColors = new List<string>();
+        string generatedColor = string.Empty;
+
+        var response = await apiClient.SendRequest<ApiResponseDto<List<RouteDto>>>("ScannersApi.Route.GetAll");
+
+        if (response.Succeeded && response.Data != null)
+        {
+            existingColors.AddRange(response.Data.Select(x => x.Color));
+        }
+        else
+        {
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString("A color could not be generated for the route because the existing routes could not be retrieved.");
+            return generatedColor;
+        }
+
+        do
+        {
+            generatedColor = GetRandomVibrantColor(random);
+        } while (existingColors.Contains(generatedColor));
+
+        return generatedColor;
+    }
+
+    private string GetRandomVibrantColor(Random random)
+    {
+        double hue = random.NextDouble() * 360; // Hue between 0 and 360
+        double saturation = 0.9; // Saturation fixed at 90% for vibrancy
+        double lightness = 0.5; // Lightness fixed at 50% for visibility
+
+        return HslToHex(hue, saturation, lightness);
+    }
+
+    private string HslToHex(double hue, double saturation, double lightness)
+    {
+        double c = (1 - Math.Abs(2 * lightness - 1)) * saturation;
+        double x = c * (1 - Math.Abs((hue / 60) % 2 - 1));
+        double m = lightness - c / 2;
+
+        double r = 0, g = 0, b = 0;
+
+        if (0 <= hue && hue < 60)
+        {
+            r = c; g = x; b = 0;
+        }
+        else if (60 <= hue && hue < 120)
+        {
+            r = x; g = c; b = 0;
+        }
+        else if (120 <= hue && hue < 180)
+        {
+            r = 0; g = c; b = x;
+        }
+        else if (180 <= hue && hue < 240)
+        {
+            r = 0; g = x; b = c;
+        }
+        else if (240 <= hue && hue < 300)
+        {
+            r = x; g = 0; b = c;
+        }
+        else if (300 <= hue && hue < 360)
+        {
+            r = c; g = 0; b = x;
+        }
+
+        int rInt = (int)((r + m) * 255);
+        int gInt = (int)((g + m) * 255);
+        int bInt = (int)((b + m) * 255);
+
+        return $"#{rInt:X2}{gInt:X2}{bInt:X2}";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (isComponentRendered)
+        {
+            await jSRuntime.InvokeVoidAsync("disposeLeafletMap");
+        }
+    }
+}

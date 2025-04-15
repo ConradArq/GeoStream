@@ -1,0 +1,120 @@
+﻿@page "/users/new"
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using GeoStream.Dtos.Administration.Users
+@using GeoStream.Services
+@using GeoStream.Models.Enums
+@inject IJSRuntime jSRuntime
+@inject IUserService userService
+@inject IRoleService roleService
+@inject NavigationManager navigationManager
+@attribute [Authorize]
+
+<EditForm Model="@newUser" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="@(GetIncidentSeverity())" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.h4" Class="text-primary">Register new user</MudText>
+            <MudGrid>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Email" @bind-Value="newUser.Email" FullWidth="true" Placeholder="Enter email" />
+                    <ValidationMessage For="@(() => newUser.Email)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Password" @bind-Value="newUser.Password" FullWidth="true" Placeholder="Enter password" />
+                    <ValidationMessage For="@(() => newUser.Password)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Confirm Password" @bind-Value="newUser.ConfirmPassword" FullWidth="true" Placeholder="Confirm password" />
+                    <ValidationMessage For="@(() => newUser.ConfirmPassword)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="First Name" @bind-Value="newUser.FirstName" FullWidth="true" Placeholder="Enter first name" />
+                    <ValidationMessage For="@(() => newUser.FirstName)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Last Name" @bind-Value="newUser.LastName" FullWidth="true" Placeholder="Enter last name" />
+                    <ValidationMessage For="@(() => newUser.LastName)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="ID Number" @bind-Value="newUser.Cedula" FullWidth="true" Placeholder="Enter ID number" />
+                    <ValidationMessage For="@(() => newUser.Cedula)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Phone Number" @bind-Value="newUser.PhoneNumber" FullWidth="true" Placeholder="Enter phone number" />
+                    <ValidationMessage For="@(() => newUser.PhoneNumber)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudSelect T="string" Placeholder="Select gender" Label="Gender" @bind-Value="newUser.Gender" FullWidth="true">
+                        <MudSelectItem Value="@("M")">Male</MudSelectItem>
+                        <MudSelectItem Value="@("F")">Female</MudSelectItem>
+                    </MudSelect>
+                    <ValidationMessage For="@(() => newUser.Gender)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudSelect Placeholder="Select role" T="string" Label="Role" @bind-Value="newUser.SelectedRole" FullWidth="true">
+                        @foreach (var role in newUser.Roles)
+                        {
+                            <MudSelectItem Value="@role.Name">
+                                @role.Name
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                    <ValidationMessage For="@(() => newUser.SelectedRole)" Class="text-danger" />
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    <MudCardActions Class="my-6">
+        <MudButton ButtonType="ButtonType.Submit" Size="Size.Large" Color="Color.Primary" Variant="Variant.Filled">
+            Save
+        </MudButton>
+        <MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Color="Color.Primary" OnClick='() => navigationManager.NavigateTo("/users")'>
+            Back to the list
+        </MudButton>
+    </MudCardActions>
+</EditForm>
+
+@code {
+    private MarkupString notificationMessage = default;
+    private bool isOperationSuccessful = false;
+    private NewUserDto newUser = new NewUserDto();
+
+    protected override async Task OnInitializedAsync()
+    {
+        newUser.Roles = await roleService.GetAllRolesAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        IdentityResult result = await userService.RegisterUserAsync(newUser);
+
+        if (result.Succeeded)
+        {
+            isOperationSuccessful = true;
+            notificationMessage = new MarkupString("User successfully registered.");
+            newUser = new NewUserDto();
+            newUser.Roles = await roleService.GetAllRolesAsync();
+        }
+        else
+        {
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString(string.Join(". ", result.Errors.Select(e => e.Description)));
+        }
+    }
+
+    private MudBlazor.Severity GetIncidentSeverity()
+    {
+        return isOperationSuccessful ? MudBlazor.Severity.Success : MudBlazor.Severity.Error;
+    }
+}

@@ -1,0 +1,14 @@
+﻿@inherits LayoutComponentBase
+
+@* <MudThemeProvider />
+<MudSnackbarProvider /> *@
+ 
+<MudThemeProvider Theme="@GeoStream.Themes.GeoStreamTheme.DarkTheme" IsDarkMode="true" />
+
+<div class="container-scroller">
+    <NavMenu />
+    <div class="container-fluid page-body-wrapper">
+        <SideBar />
+         @Body
+    </div>
+</div>

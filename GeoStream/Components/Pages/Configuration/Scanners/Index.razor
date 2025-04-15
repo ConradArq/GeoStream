@@ -1,0 +1,212 @@
+﻿@page "/scanners"
+@using Microsoft.AspNetCore.Authorization
+@using GeoStream.Dtos
+@using GeoStream.Dtos.Configuration
+@using GeoStream.RabbitMQMediator
+@using GeoStream.Services
+@using GeoStream.UIEventsMediator
+@inject IEventAggregator eventaggregator
+@inject IApiClient apiClient
+@inject NavigationManager navigationManager
+
+@attribute [Authorize]
+
+<div class="content-wrapper">
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="MudBlazor.Severity.Error" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+
+    <MudPaper Class="mt-3">
+        <MudTable Items="@scanners" Dense="true" Hover="true" Striped="true" Bordered="true">
+            <ToolBarContent>
+                <MudText Typo="Typo.h6">
+                    <MudIcon Icon="@Icons.Material.Filled.SettingsInputAntenna" Style="color: #4CAF50;" /> Scanners
+                </MudText>
+                @if (isLoading)
+                {
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Style="margin-left: 10px;" />
+                }
+                <MudSpacer />
+                <MudTextField Value="@searchString" Immediate="true" ValueChanged="@((string newValue) => OnSearchTextChanged(newValue))" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+            </ToolBarContent>
+
+            <HeaderContent>
+                <MudTh><MudTableSortLabel SortBy="new Func<ScannerDto, object>(x=>x.Code)">Code</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<ScannerDto, object>(x=>x.HubName)">Hub Name</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<ScannerDto, object>(x=>x.HubCode)">Hub Code</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<ScannerDto, object>(x=>x.CountryName)">Country</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<ScannerDto, object>(x=>x.RegionName)">Region</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<ScannerDto, object>(x=>x.DistrictName)">District</MudTableSortLabel></MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Action</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Code">
+                    @if (context.IsConnected)
+                    {
+                        @context.Code
+                    }
+                    else
+                    {
+                        <span style="color:red">@context.Code <span style="font-size:10px">(Disconnected)</span></span>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Hub Name">
+                    <MudButton OnClick="@(()=> navigationManager.NavigateTo($"/hubs/{context.HubId}"))">
+                        @context.HubName
+                    </MudButton>
+                </MudTd>
+                <MudTd DataLabel="Hub Code">
+                    <MudButton OnClick="@(()=> navigationManager.NavigateTo($"/hubs/{context.HubId}"))">
+                        @context.HubCode
+                    </MudButton>
+                </MudTd>
+                <MudTd DataLabel="Country">@context.CountryName</MudTd>
+                <MudTd DataLabel="Region">@context.RegionName</MudTd>
+                <MudTd DataLabel="District">@context.DistrictName</MudTd>
+                <MudTd DataLabel="Status">
+                    @if (context.IsActive)
+                    {
+                        <MudChip Color="Color.Success" OnClick="@(()=> ToggleState(context.Id, context.IsActive))">Active</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip Color="Color.Error" OnClick="@(()=> ToggleState(context.Id, context.IsActive))">Inactive</MudChip>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Action" Style="min-width: 140px;">
+                    <MudIconButton Icon="@Icons.Material.Filled.Search" OnClick="@(()=> navigationManager.NavigateTo($"/scanners/{context.Id}"))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" OnClick="@(()=> DeleteScanner(context.Id))" />
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager RowsPerPageString="No. of rows per page" InfoFormat="{first_item}-{last_item} of {all_items}" />
+            </PagerContent>
+        </MudTable>
+    </MudPaper>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private MarkupString notificationMessage = default;
+    private string searchString = "";
+    private int totalItems;
+    private int currentPage = 1;
+    private const int pageSize = 10;
+
+    private List<ScannerDto> scanners = new List<ScannerDto>();
+    private List<ScannerDto> allScanners = new List<ScannerDto>();
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await InitializeModelAsync();
+        isLoading = false;
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            eventaggregator.Subscribe<ScannerConnectionStateNotification>(async (_) =>
+            {
+                await InvokeAsync(async () => await InitializeModelAsync());
+            });
+        }
+    }
+
+    private void OnSearchTextChanged(string newValue)
+    {
+        searchString = newValue;
+        currentPage = 1;
+
+        FilterScanners();
+    }
+
+    private void FilterScanners()
+    {
+        if (!string.IsNullOrWhiteSpace(searchString))
+        {
+
+            scanners = allScanners.Where(scanner =>
+                scanner.Code.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
+                scanner.CountryName.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
+                scanner.RegionName.Contains(searchString, StringComparison.OrdinalIgnoreCase) ||
+                scanner.DistrictName.Contains(searchString, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+        else
+        {
+            scanners = allScanners.ToList();
+        }
+    }
+
+    private async Task ToggleState(long scannerId, bool active)
+    {
+        var scanner = scanners.Find(x => x.Id == scannerId);
+
+        if (scanner != null)
+        {
+            scanner.SwitchStatus();
+
+            var response = await apiClient.SendRequest<ApiResponseDto<ScannerDto>>("ScannersApi.Scanner.Update", new { StatusId = scanner.StatusId }, new Dictionary<string, string> { { "id", scanner.Id.ToString() } });
+
+            if (!response.Succeeded)
+            {
+                scanner.SwitchStatus();
+                await ShowNotification($"Error changing the state of the scanner '{scanner.Code}'", true);
+            }
+        }
+    }
+
+    private async Task DeleteScanner(long scannerId)
+    {
+        var response = await apiClient.SendRequest<ApiResponseDto<RouteDto>>("ScannersApi.Scanner.Delete", null, new Dictionary<string, string> { { "id", scannerId.ToString() } });
+
+        if (response.Succeeded)
+        {
+            allScanners.RemoveAll(x => x.Id == scannerId);
+            scanners = allScanners.ToList();
+        }
+        else
+        {
+            await ShowNotification(string.Join(". ", response.Errors ?? new List<string> { "Error." }));
+        }
+    }
+
+    private async Task InitializeModelAsync()
+    {
+        var result = await apiClient.SendRequest<ApiResponseDto<List<ScannerDto>>>("ScannersApi.Scanner.GetAll", null, null, new Dictionary<string, string> { { "orderBy", "Code" } });
+
+        if (result.Succeeded && result.Data != null)
+        {
+            if (result.Data.Count() > 0)
+            {
+                allScanners = result.Data;
+                scanners = allScanners.ToList();
+                StateHasChanged();
+            }
+            else
+            {
+                await ShowNotification($"No scanners have been registered.");
+            }
+        }
+        else
+        {
+            await ShowNotification($"Error retrieving the data from the API.");
+        }
+    }
+
+    private async Task ShowNotification(string msg, bool temporary = false)
+    {
+        notificationMessage = new MarkupString(msg);
+        StateHasChanged();
+        if (temporary)
+        {
+            await Task.Delay(5000);
+            notificationMessage = default;
+        }
+    }
+}

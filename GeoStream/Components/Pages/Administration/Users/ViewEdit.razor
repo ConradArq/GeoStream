@@ -1,0 +1,132 @@
+﻿@page "/users/{UserId}"
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using GeoStream.Dtos.Administration.Users
+@using GeoStream.Services
+@using GeoStream.Models.Enums
+@inject IUserService userService
+@inject IRoleService roleService
+@inject NavigationManager navigationManager
+@attribute [Authorize]
+
+<EditForm Model="@viewEditUser" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="@(GetIncidentSeverity())" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+
+    <MudCard>
+        <MudCardContent>
+            <MudText Typo="Typo.h4" Class="text-primary">User Details</MudText>
+            <MudGrid>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Email" @bind-Value="viewEditUser.Email" FullWidth="true" Placeholder="Enter email" Disabled="@isReadOnly" />
+                    <ValidationMessage For="@(() => viewEditUser.Email)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Password" @bind-Value="viewEditUser.Password" FullWidth="true" Placeholder="Enter new password (Optional)" Disabled="@isReadOnly" />
+                    <ValidationMessage For="@(() => viewEditUser.Password)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Confirm Password" @bind-Value="viewEditUser.ConfirmPassword" FullWidth="true" Placeholder="Confirm new password (Optional)" Disabled="@isReadOnly" />
+                    <ValidationMessage For="@(() => viewEditUser.ConfirmPassword)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="First Name" @bind-Value="viewEditUser.FirstName" FullWidth="true" Placeholder="Enter first name" Disabled="@isReadOnly" />
+                    <ValidationMessage For="@(() => viewEditUser.FirstName)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Last Name" @bind-Value="viewEditUser.LastName" FullWidth="true" Placeholder="Enter last name" Disabled="@isReadOnly" />
+                    <ValidationMessage For="@(() => viewEditUser.LastName)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="ID Number" @bind-Value="viewEditUser.Cedula" FullWidth="true" Placeholder="Enter ID number" Disabled="@isReadOnly" />
+                    <ValidationMessage For="@(() => viewEditUser.Cedula)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Phone Number" @bind-Value="viewEditUser.PhoneNumber" FullWidth="true" Placeholder="Enter phone number" Disabled="@isReadOnly" />
+                    <ValidationMessage For="@(() => viewEditUser.PhoneNumber)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudSelect T="string" Placeholder="Select gender" Label="Gender" @bind-Value="viewEditUser.Gender" FullWidth="true" Disabled="@isReadOnly">
+                        <MudSelectItem Value="@("M")">Male</MudSelectItem>
+                        <MudSelectItem Value="@("F")">Female</MudSelectItem>
+                    </MudSelect>
+                    <ValidationMessage For="@(() => viewEditUser.Gender)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudSelect Placeholder="Select role" T="string" Label="Role" @bind-Value="viewEditUser.RoleId" FullWidth="true" Disabled="@isReadOnly">
+                        @foreach (var role in viewEditUser.Roles)
+                        {
+                            <MudSelectItem Value="@role.Name">
+                                @role.Name
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                    <ValidationMessage For="@(() => viewEditUser.RoleId)" Class="text-danger" />
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    <MudCardActions Class="my-6">
+        <MudButton ButtonType="@CurrentButtonType" Size="Size.Large" Color="Color.Primary" Variant="Variant.Filled" OnClick="ToggleEdit">
+            @buttonText
+        </MudButton>
+        <MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Color="Color.Primary" OnClick='() => navigationManager.NavigateTo("/users")'>
+            Back to the list
+        </MudButton>
+    </MudCardActions>
+</EditForm>
+
+@code {
+    [Parameter]
+    public string UserId { get; set; }
+
+    private ViewEditUserDto viewEditUser = new ViewEditUserDto();
+    private MarkupString notificationMessage = default;
+    private bool isOperationSuccessful = false;
+    private bool isReadOnly = true;
+    private string buttonText = "Edit";
+    
+    private ButtonType CurrentButtonType => isReadOnly ? ButtonType.Button : ButtonType.Submit;
+
+    protected override async Task OnInitializedAsync()
+    {
+        viewEditUser = await userService.GetUserByAsync(UserId);
+        viewEditUser.Roles = await roleService.GetAllRolesAsync(true);
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        IdentityResult result = await userService.UpdateUserAsync(viewEditUser);
+
+        if (result.Succeeded)
+        {
+            isOperationSuccessful = true;
+            notificationMessage = new MarkupString("User successfully updated.");
+            viewEditUser.Roles = await roleService.GetAllRolesAsync();
+        }
+        else
+        {
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString(string.Join(". ", result.Errors.Select(e => e.Description)));
+        }
+    }
+
+    private void ToggleEdit()
+    {
+        isReadOnly = !isReadOnly && buttonText == "Edit";
+        buttonText = isReadOnly ? "Edit" : "Save";
+    }
+
+    private MudBlazor.Severity GetIncidentSeverity()
+    {
+        return isOperationSuccessful ? MudBlazor.Severity.Success : MudBlazor.Severity.Error;
+    }
+}

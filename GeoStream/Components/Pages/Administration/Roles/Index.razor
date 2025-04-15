@@ -1,0 +1,184 @@
+﻿@page "/roles"
+@using Microsoft.AspNetCore.Authorization
+@using GeoStream.Dtos.Administration.Roles
+@using GeoStream.Services
+@using GeoStream.Models.Enums
+@inject IRoleService roleService
+@inject NavigationManager navigationManager
+
+@attribute [Authorize]
+
+<div class="content-wrapper">
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="MudBlazor.Severity.Error" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+    <MudGrid>
+        <MudItem xs="12" sm="6">
+        </MudItem>
+        <MudItem xs="12" sm="6" Class="d-flex justify-content-end">
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => navigationManager.NavigateTo("/roles/new"))">
+                <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />Add Role
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Class="mt-3">
+        <MudTable Items="@roles" Dense="true" Hover="true" Striped="true" Bordered="true">
+            <ToolBarContent>
+                <MudText Typo="Typo.h6"><MudIcon Icon="@Icons.Material.Filled.Security" Style="color: #FFC107;" /> Roles</MudText>
+                <MudSpacer />
+                <MudTextField Value="@searchString" Immediate="true" ValueChanged="@((string newValue) => OnSearchTextChanged(newValue))" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+            </ToolBarContent>
+
+            <HeaderContent>
+                <MudTh><MudTableSortLabel SortBy="new Func<RoleDto, object>(x=>x.Name)">Name</MudTableSortLabel></MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Action</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Name">@context.Name</MudTd>
+                <MudTd DataLabel="State">
+                    @switch (context.StatusId)
+                    {
+                        case (int)Status.Active:
+                            <MudChip Color="Color.Success" OnClick="@(()=> ToggleState(context.Id, context.StatusId))">Active</MudChip>
+                            break;
+                        case (int)Status.Inactive:
+                            <MudChip Color="Color.Error" OnClick="@(()=> ToggleState(context.Id, context.StatusId))">Inactive</MudChip>
+                            break;
+                        default:
+                            <MudChip Color="Color.Dark">Unknown</MudChip>
+                            break;
+                    }
+                </MudTd>
+                <MudTd DataLabel="Action">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" OnClick="@(()=> DeleteRole(context.Id))" />
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager RowsPerPageString="No. of rows per page" InfoFormat="{first_item}-{last_item} of {all_items}" />
+            </PagerContent>
+        </MudTable>
+    </MudPaper>
+</div>
+
+@code {
+    private MarkupString notificationMessage = default;
+    private bool showNotification = false;
+
+    private string searchString = "";
+
+    private int totalItems;
+    private int currentPage = 1;
+    private const int pageSize = 10;
+
+    private List<RoleDto> roles = new List<RoleDto>();
+    private List<RoleDto> allRoles = new List<RoleDto>();
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            allRoles = await roleService.GetAllRolesAsync();
+            roles = allRoles.ToList();
+
+            if (!roles.Any())
+            {
+                await ShowNotification($"No roles have been registered.");
+            }
+        }
+        catch
+        {
+            await ShowNotification($"Error retrieving the roles from the database.");
+        }
+    }
+
+    private void OnSearchTextChanged(string newValue)
+    {
+        searchString = newValue;
+        currentPage = 1;
+
+        FilterRoles();
+    }
+
+    private void FilterRoles()
+    {
+        if (!string.IsNullOrWhiteSpace(searchString))
+        {
+            roles = allRoles.Where(role =>
+                role.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+        else
+        {
+            roles = allRoles.ToList();
+        }
+    }
+
+    private async Task DeleteRole(string roleId)
+    {
+        var result = await roleService.DeleteRoleAsync(roleId);
+        if (result.Succeeded)
+        {
+            roles.RemoveAll(x => x.Id == roleId);
+        }
+        else
+        {
+            await ShowNotification(string.Join("; ", result.Errors.Select(e => e.Description)), true);
+        }
+    }
+
+    private async Task ToggleState(string roleId, int stateId)
+    {
+        var role = roles.Find(x => x.Id == roleId);
+
+        if (role != null)
+        {
+            if (stateId == (int)Models.Enums.Status.Active && await roleService.HasUsersAsync(role.Name))
+            {
+                await ShowNotification($"The role '{role.Name}' cannot be disabled because there are users associated with it. Please delete the users first.", true);
+            }
+            else
+            {
+                ViewEditRoleDto viewEditRoleDto = new ViewEditRoleDto() { Id = role.Id, StatusId = stateId };
+
+                @switch (viewEditRoleDto.StatusId)
+                {
+                    case (int)Status.Active:
+                        viewEditRoleDto.StatusId = (int)Status.Inactive;
+                        break;
+                    case (int)Status.Inactive:
+                        viewEditRoleDto.StatusId = (int)Status.Active;
+                        break;
+                    default:
+                        break;
+                }
+
+                var result = await roleService.UpdateRoleAsync(viewEditRoleDto, true);
+
+                if (result.Succeeded)
+                {
+                    role.StatusId = viewEditRoleDto.StatusId;
+                }
+                else
+                {
+                    await ShowNotification($"Error changing the state of the role '{role.Name}'", true);
+                }
+            }
+        }
+    }
+
+    private async Task ShowNotification(string msg, bool temporary = false)
+    {
+        notificationMessage = new MarkupString(msg);
+        StateHasChanged();
+        if (temporary)
+        {
+            await Task.Delay(5000);
+            notificationMessage = default;
+        }
+    }
+}

@@ -1,0 +1,108 @@
+﻿@page "/reports"
+@using Microsoft.AspNetCore.Authorization
+@using GeoStream.Dtos
+@using GeoStream.Dtos.Application
+@using GeoStream.Services
+@using GeoStream.Extensions;
+@inject IApiClient apiClient
+@inject NavigationManager navigationManager
+@attribute [Authorize]
+
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<div class="content-wrapper">
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="MudBlazor.Severity.Error" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+    <MudPaper Class="mt-3">
+        <MudTable Items="@reports" Dense="true" Hover="true" Striped="true" Bordered="true" PageSize="10">
+            <ToolBarContent>
+                <MudText Typo="Typo.h6">
+                    <MudIcon Icon="@Icons.Material.Filled.TableChart" Style="color: #4CAF50;" /> Reports
+                </MudText>
+                <MudSpacer />
+            </ToolBarContent>
+            <HeaderContent>
+                <MudTh>Report</MudTh>
+                <MudTh>Input parameters</MudTh>
+                <MudTh>Action</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+
+                <MudTd DataLabel="Report" Style="font-size:calc(12px + 0.3vw); padding: 8px; border-radius: 4px;">@context.Name</MudTd>
+                <MudTd DataLabel="Parameters">
+                    @if (context.Id == Dtos.Enums.Reports.AssetActivityReport)
+                    {
+                        <MudSelect T="string" @bind-Value="@context.SelectedAssetCode" Placeholder
+                        ="Seleccione Asset Code" Variant
+                        ="Variant.Text" Adornment
+                        ="Adornment.End" AdornmentColor
+                        ="Color.Primary" Dense
+                        ="true" Style
+                        ="width: 100%; max-width: 250px;">
+                            @foreach (var assetCode in assetCodes)
+                            {
+                                <MudSelectItem Value="@assetCode" />
+                            }
+                        </MudSelect>
+                    }
+                </MudTd>
+                <MudTd>
+                    @if (context.Id == Dtos.Enums.Reports.ScannerActivityReport)
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => GenerateScannerActivityReport(context))">Generate</MudButton>
+                    }
+                    else @if (context.Id == Dtos.Enums.Reports.AssetActivityReport)
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => GenerateAssetActivityReport(context))" Disabled="string.IsNullOrEmpty(context.SelectedAssetCode)">Generate</MudButton>
+                    }
+                    </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+</div>
+
+@code {
+    private MarkupString notificationMessage = default;
+
+    private List<ReportDTO> reports = new List<ReportDTO>();
+
+    private List<string> assetCodes = new List<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        foreach (Dtos.Enums.Reports report in Enum.GetValues(typeof(Dtos.Enums.Reports)))
+        {
+            reports.Add(new ReportDTO()
+                {
+                    Id = report,
+                    Name = report.GetDisplayName()
+                });
+        }
+
+        var result = await apiClient.SendRequest<ApiResponseDto<List<AssetDto>>>("ScannersApi.Asset.GetAll");
+
+        if (result.Succeeded && result.Data != null)
+        {
+            assetCodes = result.Data.Select(x => x.Code).ToList();
+        }
+        else
+        {
+            notificationMessage = new MarkupString("Error retrieving the asset codes from the API.");
+        }
+    }
+
+    private void GenerateScannerActivityReport(ReportDTO report)
+    {
+        navigationManager.NavigateTo($"/download/reports?reportId={(int)report.Id}", true);
+    }
+
+    private void GenerateAssetActivityReport(ReportDTO report)
+    {
+        navigationManager.NavigateTo($"/download/reports?reportId={(int)report.Id}&assetCode={report.SelectedAssetCode}", true);
+    }
+}

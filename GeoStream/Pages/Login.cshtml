@@ -1,0 +1,92 @@
+﻿@page "/login"
+@model GeoStream.Pages.LoginModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+@{
+    ViewData["Title"] = "Login";
+}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <title>Live Geospatial Data & Signal Tracking</title>
+    <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="css/datatable/datatables.bootstrap4.css" />
+    <link rel="stylesheet" href="css/ti-icons/css/themify-icons.css" />
+
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/styles.css" />
+
+    <link rel="icon" type="image/png" href="images/logo.png" />
+
+    <script src="js/jquery/vendor.bundle.base.js"></script>
+    <script src="js/datatable/jquery.datatables.js"></script>
+    <script src="js/datatable/datatables.bootstrap4.js"></script>
+    <script src="js/datatable/data-table.js"></script>
+
+</head>
+
+<body>
+    <div class="container-scroller">
+        <div class="container-fluid page-body-wrapper full-page-wrapper">
+            <div class="content-wrapper d-flex align-items-center auth px-0">
+                <div class="row w-100 mx-0">
+                    <div class="col-lg-4 mx-auto">
+                        <div class="auth-form-light text-left py-5 px-4 px-sm-5">
+                            <div class="brand-logo">
+                                <img src="~/images/logo.png" alt="logo">
+                            </div>
+                            <h6><strong>Live Geospatial Data & Signal Tracking</strong></h6>
+                            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+                            {
+                                <div class="alert alert-danger" role="alert">
+                                    @Model.ErrorMessage
+                                </div>
+                            }
+                            <form method="post">
+                                @Html.AntiForgeryToken()
+                                <div class="mb-1">
+                                    <label for="Email" class="control-label">Email</label>
+                                    <input asp-for="LoginDto.Email" class="form-control" />
+                                    <span asp-validation-for="LoginDto.Email" class="text-danger"></span>
+                                </div>
+                                <div class="mb-1">
+                                    <label for="Password" class="control-label">Password</label>
+                                    <input asp-for="LoginDto.Password" class="form-control" />
+                                    <span asp-validation-for="LoginDto.Password" class="text-danger"></span>
+                                </div>
+                                <div class="mb-1 form-check">
+                                    <label class="form-check-label">
+                                        <input asp-for="LoginDto.RememberMe" class="form-check-input" />
+                                        Remember me
+                                        <i class="input-helper"></i>
+                                    </label>
+                                </div>
+                                <div class="row">
+                                    <div class="col-12">
+                                        <button type="submit" class="btn btn-block btn-primary btn-lg font-weight-medium auth-form-btn">Log in</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="d-sm-flex justify-content-center justify-content-sm-between">
+            <span class="text-muted text-center text-sm-left d-block d-sm-inline-block">
+                © 2025 <strong>GeoStream</strong> — Live Geospatial Data & Signal Tracking. All rights reserved.
+            </span>
+        </div>
+    </footer>
+
+</body>
+
+</html>

@@ -1,0 +1,283 @@
+﻿@page "/assets/new"
+
+@using Microsoft.AspNetCore.Authorization
+@using GeoStream.Api.Application.Dtos.AssetRegistry
+@using GeoStream.Dtos
+@using GeoStream.Dtos.Configuration
+@using GeoStream.Dtos.Dependencies
+@using GeoStream.Dtos.Application
+@using GeoStream.Services
+@inject IApiClient apiClient
+@inject NavigationManager navigationManager
+
+@attribute [Authorize]
+
+<EditForm Model="@assetDto" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="@(GetIncidentSeverity())" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+
+    <MudCard Class="mb-2">
+        <MudCardContent>
+            <div style="display: flex; align-items: center;">
+                <MudText Typo="Typo.h4" Class="text-primary">Register new asset</MudText>
+                @if (isLoading)
+                {
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Style="margin-left: 10px;" />
+                }
+            </div>
+        </MudCardContent>
+    </MudCard>
+
+    <MudCard>
+        <MudCardHeader style="font-weight:bold;" Title="Asset Details">Asset Details</MudCardHeader>
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Immediate="true" ValueChanged="@(async (string newValue) => await OnAssetCodeChanged(newValue))" Label="Asset Code" FullWidth="true" Placeholder="Enter Asset Code" />
+                    <ValidationMessage For="@(() => assetDto.Code)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Emitter" @bind-Value="assetDto.Emitter" FullWidth="true" Placeholder="Enter Emitter" />
+                    <ValidationMessage For="@(() => assetDto.Emitter)" Class="text-danger" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudTextField Label="Owner Document Number" @bind-Value="assetDto.OwnerDocumentNumber" FullWidth="true" Disabled="true" />
+                    <ValidationMessage For="@(() => assetDto.OwnerDocumentNumber)" Class="text-danger" />
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    <MudCard>
+        <MudCardHeader style="font-weight:bold;" Class="my-4" Title="General Asset Information">General Asset Information</MudCardHeader>
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudSelect Placeholder="Select route" T="int?" Label="Route" @bind-Value="assetDto.RouteId" FullWidth="true">
+                        @foreach (var route in routes)
+                        {
+                            <MudSelectItem Value="@route.Id">@route.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <ValidationMessage For="@(() => assetDto.RouteId)" Class="text-danger" />
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+
+    <MudCard>
+        <MudCardHeader style="font-weight:bold;" Class="my-4" Title="Special Access">Special Access <span style="font-weight:normal;margin-left:5px;font-size:small">(Optional)</span></MudCardHeader>
+        @if (!string.IsNullOrEmpty(specialAccesssMessage.Value))
+        {
+            <MudAlert Severity="MudBlazor.Severity.Error" Class="mb-2">
+                @specialAccesssMessage
+            </MudAlert>
+        }
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudDateRangePicker Label="Select duration" @bind-DateRange="dateRange" PickerVariant="PickerVariant.Dialog" />
+                </MudItem>
+
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudSelect Placeholder="Select route" T="int?" Label="Route" @bind-Value="permittedRouteId" FullWidth="true">
+                        @foreach (var route in routes)
+                        {
+                            <MudSelectItem Value="@route.Id">@route.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="my-2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddPermittedRoute">
+                        +
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+
+            <MudList>
+                @foreach (var specialAccess in assetDto.SpecialAccesss)
+                {
+                    <MudListItem>
+                        <MudGrid Class="align-items-center">
+                            <MudItem Class="py-2">
+                                <MudIcon Icon="@Icons.Material.Filled.Directions" Size="Size.Small" Style="font-size: 12px; color:#4CAF50" />
+                            </MudItem>
+                            <MudItem Class="py-2">
+                                @{
+                                    var route = routes.FirstOrDefault(x => x.Id == specialAccess.RouteId);
+                                    if (route != null)
+                                    {
+                                        <text>@route.Name <span style="font-style:italic;font-size:0.9rem">(@specialAccess.StartDate.ToString("MM-dd-yyyy") - @specialAccess.EndDate.ToString("MM-dd-yyyy"))</span></text>
+                                    }
+                                }
+                            </MudItem>
+                            <MudItem Class="py-0">
+                                <MudIconButton Class="py-2" Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeletePermittedRoute(specialAccess.RouteId))" />
+                            </MudItem>
+                        </MudGrid>
+                    </MudListItem>
+                }
+            </MudList>
+        </MudCardContent>
+    </MudCard>
+
+    <MudCardActions Class="my-6">
+        <MudButton ButtonType="ButtonType.Submit" Size="Size.Large" Color="Color.Primary" Variant="Variant.Filled" Disabled="@isSaveButtonDisabled">
+            Save
+        </MudButton>
+        <MudButton ButtonType="ButtonType.Button" Variant="Variant.Text" Color="Color.Primary" OnClick='() => navigationManager.NavigateTo("/assets")'>
+            Back to the list
+        </MudButton>
+    </MudCardActions>
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="@(GetIncidentSeverity())" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+</EditForm>
+
+<script>
+    document.addEventListener('shown.bs.popover', function (event) {
+    let popover = document.querySelector('.mud-popover');
+    if (popover) {
+    // Adjust positioning, e.g., force it to show upwards
+    popover.style.top = (popover.offsetTop - popover.offsetHeight - 20) + 'px';
+    }
+    });
+</script>
+
+@code {
+    private bool isLoading = true;
+    private MarkupString notificationMessage = default;
+    private MarkupString specialAccesssMessage = default;
+    private bool isOperationSuccessful = false;
+    private bool isSaveButtonDisabled = true;
+    private NewAssetDto assetDto = new NewAssetDto();
+    private List<RouteDtoMudSelect> routes = new List<RouteDtoMudSelect>();
+    private int? permittedRouteId;
+    private DateRange _dateRange = new();
+    public DateRange dateRange
+    {
+        get => _dateRange;
+        set
+        {
+            if (_dateRange != value)
+            {
+                _dateRange = value;
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var resultRoutes = await apiClient.SendRequest<ApiResponseDto<List<RouteDtoMudSelect>>>("ScannersApi.Route.GetAll", null, null, new Dictionary<string, string> { { "onlyActive", "true" } });
+        if (resultRoutes.Succeeded && resultRoutes.Data != null)
+        {
+            routes = resultRoutes.Data;
+        }
+        else
+        {
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString(string.Concat(notificationMessage.Value, "<br>Failed to load the routes from the API."));
+        }
+
+        isLoading = false;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        isLoading = true;
+
+        var response = await apiClient.SendRequest<ApiResponseDto<NewAssetDto>>("ScannersApi.Asset.Create", assetDto);
+
+        if (response.Succeeded)
+        {
+            isOperationSuccessful = true;
+            notificationMessage = new MarkupString("Asset successfully registered.");
+            assetDto = new NewAssetDto();
+            dateRange = new();
+            isSaveButtonDisabled = true;
+        }
+        else
+        {
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString(string.Join(". ", response.Errors ?? new List<string> { "Error." }));
+        }
+
+        isLoading = false;
+    }
+
+    private void AddPermittedRoute()
+    {
+        if (permittedRouteId != null && _dateRange != null && _dateRange.Start != null && _dateRange.End != null && _dateRange.Start != _dateRange.End)
+        {
+            if (!assetDto.SpecialAccesss.Any(x => x.RouteId == permittedRouteId.Value && !(_dateRange.Start.Value < x.StartDate && _dateRange.End.Value <= x.StartDate || _dateRange.Start.Value >= x.EndDate && _dateRange.End.Value > x.EndDate)))
+            {
+                assetDto.SpecialAccesss.Add(new SpecialAccessDto() { RouteId = permittedRouteId.Value, StartDate = _dateRange.Start ?? default(DateTime), EndDate = _dateRange.End ?? default(DateTime) });
+                permittedRouteId = null;
+                dateRange = new();
+                specialAccesssMessage = default;
+            }
+            else
+            {
+                specialAccesssMessage = new MarkupString("A route permit already exists for that route and date range.");
+            }
+        }
+    }
+
+    private void DeletePermittedRoute(long permittedRouteId)
+    {
+        var specialAccessToDelete = assetDto.SpecialAccesss.FirstOrDefault(r => r.RouteId == permittedRouteId);
+        if (specialAccessToDelete != null)
+        {
+            assetDto.SpecialAccesss.Remove(specialAccessToDelete);
+        }
+    }
+
+    private async Task OnAssetCodeChanged(string newValue)
+    {
+        isLoading = true;
+
+        assetDto.Code = newValue;
+
+        var responseApiAssetRegistry = await apiClient.SendRequest<ApiResponseDto<List<AssetRegistryDto>>>("ScannersApi.AssetRegistry.Search", new { Code = assetDto.Code });
+
+        if (responseApiAssetRegistry.Succeeded)
+        {
+            notificationMessage = default;
+            var data = responseApiAssetRegistry.Data?.FirstOrDefault();
+            if (data != null)
+            {
+                assetDto.OwnerDocumentNumber = data.OwnerDocumentNumber ?? string.Empty;
+
+                isSaveButtonDisabled = false;
+            }
+            else
+            {
+                assetDto.OwnerDocumentNumber = string.Empty;
+
+                isSaveButtonDisabled = true;
+            }
+        }
+        else
+        {
+            isSaveButtonDisabled = true;
+            isOperationSuccessful = false;
+            notificationMessage = new MarkupString("Error querying the asset registry API. Asset data could not be retrieved using the Asset Code.");
+        }
+
+        isLoading = false;
+    }
+
+    private MudBlazor.Severity GetIncidentSeverity()
+    {
+        return isOperationSuccessful ? MudBlazor.Severity.Success : MudBlazor.Severity.Error;
+    }
+}

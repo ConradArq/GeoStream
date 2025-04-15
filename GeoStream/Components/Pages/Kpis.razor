@@ -1,0 +1,182 @@
+﻿@page "/kpis"
+@using ApexCharts
+@using ChartType = ApexCharts.ChartType
+@using Color = MudBlazor.Color
+@using GeoStream.Dtos
+@using GeoStream.Extensions
+@using GeoStream.RabbitMQMediator
+@using GeoStream.Services
+@using GeoStream.UIEventsMediator
+@inject IEventAggregator eventaggregator
+@inject IApiClient apiClient;
+
+<MudPaper Class="mud-width-full">
+    @if (!string.IsNullOrEmpty(notificationMessage.Value))
+    {
+        <MudAlert Severity="MudBlazor.Severity.Error" Class="mb-2">
+            @notificationMessage
+        </MudAlert>
+    }
+
+    <MudContainer MaxWidth="MaxWidth.Medium">
+        <div style="display: flex; align-items: center;">
+            <MudText Typo="Typo.h4" Class="text-primary">KPIs</MudText>
+
+            @if (isLoading)
+            {
+                <MudProgressCircular Color="Color.Primary" Indeterminate="true" Style="margin-left: 10px;" />
+            }
+
+        </div>
+
+        <MudCarousel Class="mud-width-full" @ref="_carousel" ItemsSource="@IncidentsIntervalStatisticsDtos" Style="height:600px;" ShowArrows="@_arrows" ShowBullets="@_bullets" EnableSwipeGesture="true" AutoCycle="@_autocycle" @bind-SelectedIndex="mudCarouselSelectedIndex">
+            <ItemTemplate>
+
+                <div @key="GenerateChartKey(context)">
+                    <ApexChart TItem="IncidentIntervalStatisticsDto"
+                    Title="@context.Name"
+                    @ref="chart"
+                    Height="550">
+                        <ChildContent>
+
+                            @foreach (var incidentsTypeStatisticsDto in context.IncidentsTypeStatisticsDtos)
+                            {
+                                <ApexPointSeries TItem="IncidentIntervalStatisticsDto"
+                                Items="incidentsTypeStatisticsDto.IncidentIntervalStatisticsDtos"
+                                Name="@incidentsTypeStatisticsDto.Name"
+                                SeriesType="context.SeriesType"
+                                XValue="e => e.Emitter"
+                                YValue="e => e.IncidentCount" />
+                            }
+
+                        </ChildContent>
+                    </ApexChart>
+                </div>
+            </ItemTemplate>
+        </MudCarousel>
+
+        <MudContainer Class="mt-4" MaxWidth="MaxWidth.Small" Style="max-width: 100%;">
+            <MudGrid>
+                <MudItem xs="12" md="3" Style="padding-top:0;">
+                    <MudSelect T="Interval" Label="Time Interval" Immediate="true" ValueChanged="OnIntervalChanged" Value="@selectedInterval">
+                        <MudSelectItem Value="Interval.Daily">Daily</MudSelectItem>
+                        <MudSelectItem Value="Interval.Monthly">Monthly</MudSelectItem>
+                        <MudSelectItem Value="Interval.Yearly">Yearly</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudSwitch @bind-Value="_arrows" Color="Color.Primary">Show arrows</MudSwitch>
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudSwitch @bind-Value="_bullets" Color="Color.Primary">Show dots</MudSwitch>
+                </MudItem>
+                <MudItem xs="12" md="3">
+                    <MudSwitch @bind-Value="_autocycle" Color="Color.Primary">Automatic movement</MudSwitch>
+                </MudItem>
+            </MudGrid>
+        </MudContainer>
+    </MudContainer>
+
+</MudPaper>
+
+@code {
+    private bool isLoading = true;
+    private MarkupString notificationMessage = default;
+    private List<IncidentsIntervalStatisticsDto> IncidentsIntervalStatisticsDtos { get; set; } = new();
+    private int mudCarouselSelectedIndex = 0;
+    private int stateVersion = 0;
+    private ApexChart<IncidentIntervalStatisticsDto> chart = new();
+    private MudCarousel<IncidentsIntervalStatisticsDto> _carousel = new();
+    private bool _arrows = true;
+    private bool _bullets = true;
+    private bool _enableSwipeGesture = true;
+    private bool _autocycle = false;
+    private Interval selectedInterval;
+
+    private async Task PopulateIncidentsIntervalStatisticsDto()
+    {
+        var incidentsIntervalStatisticsDtosResult = await apiClient.SendRequest<ApiResponseDto<List<IncidentsIntervalStatisticsDto>>>("ScannersApi.Emitter.GetIncidentsIntervalStatistics", selectedInterval);
+
+        if (incidentsIntervalStatisticsDtosResult.Succeeded && incidentsIntervalStatisticsDtosResult.Data != null)
+        {
+            IncidentsIntervalStatisticsDtos = incidentsIntervalStatisticsDtosResult.Data;
+
+            foreach (var incidentsIntervalStatisticsDto in IncidentsIntervalStatisticsDtos)
+            {
+                switch (incidentsIntervalStatisticsDto.StatisticsType)
+                {
+                    case StatisticsType.IncidentsByType:
+                        incidentsIntervalStatisticsDto.SeriesType = SeriesType.Bar;
+                        break;
+                    case StatisticsType.IncidentsByCountry:
+                        incidentsIntervalStatisticsDto.SeriesType = SeriesType.Pie;
+                        break;
+                }
+            }
+
+            if (IncidentsIntervalStatisticsDtos.SelectMany(x => x.IncidentsTypeStatisticsDtos).SelectMany(x => x.IncidentIntervalStatisticsDtos).Select(x => x.IncidentCount).Sum() == 0)
+            {
+                await ShowNotification($"No incidents have been registered.");
+            }
+            else
+            {
+                notificationMessage = default;
+            }
+
+            stateVersion++; // Increment state version to force re-render
+            StateHasChanged();
+        }
+        else
+        {
+            await ShowNotification($"Error retrieving the incidents.");
+        }
+    }
+
+    private string GenerateChartKey(IncidentsIntervalStatisticsDto dto)
+    {
+        return $"{dto.Name}-{dto.SeriesType}-{stateVersion}";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        eventaggregator.Subscribe<EmitterStoredNotification>(OnEmitterStoredEvent);
+        selectedInterval = Interval.Daily;
+        await PopulateIncidentsIntervalStatisticsDto();
+        mudCarouselSelectedIndex = 0;
+        isLoading = false;
+    }
+
+    private async void OnEmitterStoredEvent(EmitterStoredNotification emitterStoredNotification)
+    {
+        if (emitterStoredNotification.emitterStoredLog.IncidentTypes.Count() > 0)
+        {
+            await InvokeAsync(async () =>
+            {
+                await PopulateIncidentsIntervalStatisticsDto();
+            });
+        }
+    }
+
+    private async Task OnIntervalChanged(Interval interval)
+    {
+        selectedInterval = interval;
+        await PopulateIncidentsIntervalStatisticsDto();
+    }
+
+    public void Dispose()
+    {
+        eventaggregator.Unsubscribe<EmitterStoredNotification>(OnEmitterStoredEvent);
+    }
+
+    private async Task ShowNotification(string msg, bool temporary = false)
+    {
+        notificationMessage = new MarkupString(msg);
+        StateHasChanged();
+        if (temporary)
+        {
+            await Task.Delay(5000);
+            notificationMessage = default;
+            StateHasChanged();
+        }
+    }
+}
