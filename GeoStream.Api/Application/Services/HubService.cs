@@ -160,14 +160,14 @@ namespace GeoStream.Api.Application.Services
             return response;
         }
 
-        public async Task<ResponseDto<IEnumerable<ResponseHubDto>>> GetAllAsync(QueryRequestDto? requestDto)
+        public async Task<ResponseDto<IEnumerable<ResponseHubDto>>> GetAllAsync(RequestDto? requestDto)
         {
             var selector = new Func<IQueryable<Hub>, IQueryable<ResponseHubDto>>(query => query
                 .ProjectTo<ResponseHubDto>(_mapper.ConfigurationProvider)
             );
 
             var responseDtos = await _unitOfWork.HubRepository.GetAsync(
-                orderBy: QueryHelper.BuildOrderByFunction<Hub>(requestDto),
+                orderBy: BuildOrderByFunction<Hub>(requestDto),
                 selector: selector
             );
 
@@ -177,7 +177,7 @@ namespace GeoStream.Api.Application.Services
 
         public async Task<PaginatedResponseDto<IEnumerable<ResponseHubDto>>> GetAllPaginatedAsync(PaginationRequestDto requestDto)
         {
-            var entities = await _unitOfWork.HubRepository.GetPaginatedAsync(requestDto.PageNumber, requestDto.PageSize, orderBy: QueryHelper.BuildOrderByFunction<Hub>(requestDto));
+            var entities = await _unitOfWork.HubRepository.GetPaginatedAsync(requestDto.PageNumber, requestDto.PageSize, orderBy: BuildOrderByFunction<Hub>(requestDto));
 
             var response = new PaginatedResponseDto<IEnumerable<ResponseHubDto>>(_mapper.Map<IEnumerable<ResponseHubDto>>(entities.Data), requestDto.PageNumber, requestDto.PageSize, entities.TotalItems);
             return response;
@@ -185,7 +185,7 @@ namespace GeoStream.Api.Application.Services
 
         public async Task<ResponseDto<IEnumerable<ResponseHubDto>>> SearchAsync(SearchHubDto requestDto)
         {
-            var searchExpression = QueryHelper.BuildPredicate<Hub>(requestDto);
+            var searchExpression = BuildPredicate<Hub>(requestDto);
 
             var selector = new Func<IQueryable<Hub>, IQueryable<ResponseHubDto>>(query => query
                 .ProjectTo<ResponseHubDto>(_mapper.ConfigurationProvider)
@@ -193,7 +193,7 @@ namespace GeoStream.Api.Application.Services
 
             var responseDtos = await _unitOfWork.HubRepository.GetAsync(
                 predicate: searchExpression,
-                orderBy: QueryHelper.BuildOrderByFunction<Hub>(requestDto),
+                orderBy: BuildOrderByFunction<Hub>(requestDto),
                 selector: selector
             );
 
@@ -203,8 +203,8 @@ namespace GeoStream.Api.Application.Services
 
         public async Task<PaginatedResponseDto<IEnumerable<ResponseHubDto>>> SearchPaginatedAsync(SearchPaginatedHubDto requestDto)
         {
-            var searchExpression = QueryHelper.BuildPredicate<Hub>(requestDto);
-            var entities = await _unitOfWork.HubRepository.GetPaginatedAsync(requestDto.PageNumber, requestDto.PageSize, searchExpression, orderBy: QueryHelper.BuildOrderByFunction<Hub>(requestDto));
+            var searchExpression = BuildPredicate<Hub>(requestDto);
+            var entities = await _unitOfWork.HubRepository.GetPaginatedAsync(requestDto.PageNumber, requestDto.PageSize, searchExpression, orderBy: BuildOrderByFunction<Hub>(requestDto));
 
             var response = new PaginatedResponseDto<IEnumerable<ResponseHubDto>>(_mapper.Map<IEnumerable<ResponseHubDto>>(entities.Data), requestDto.PageNumber, requestDto.PageSize, entities.TotalItems);
             return response;

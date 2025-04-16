@@ -3,7 +3,7 @@ using GeoStream.Api.Domain.Enums;
 using GeoStream.Api.Domain.Interfaces.Models;
 using GeoStream.Api.Domain.Interfaces.Repositories;
 
-namespace GeoStream.Api.Infrastructure.Persistence.MSSQL.Strategies
+namespace GeoStream.Api.Application.Strategies
 {
     /// <summary>
     /// A deletion strategy that performs a soft delete by setting the status of the entity and its related children to inactive.

@@ -192,9 +192,9 @@ namespace GeoStream.Api.Application.Services
             return response;
         }
 
-        public async Task<ResponseDto<IEnumerable<ResponseRouteDto>>> GetAllAsync(QueryRequestDto? requestDto)
+        public async Task<ResponseDto<IEnumerable<ResponseRouteDto>>> GetAllAsync(RequestDto? requestDto)
         {
-            var entities = await _unitOfWork.RouteRepository.GetAsync(orderBy: QueryHelper.BuildOrderByFunction<Route>(requestDto));
+            var entities = await _unitOfWork.RouteRepository.GetAsync(orderBy: BuildOrderByFunction<Route>(requestDto));
 
             var response = new ResponseDto<IEnumerable<ResponseRouteDto>>(_mapper.Map<IEnumerable<ResponseRouteDto>>(entities));
             return response;
@@ -202,7 +202,7 @@ namespace GeoStream.Api.Application.Services
 
         public async Task<PaginatedResponseDto<IEnumerable<ResponseRouteDto>>> GetAllPaginatedAsync(PaginationRequestDto requestDto)
         {
-            var entities = await _unitOfWork.RouteRepository.GetPaginatedAsync(requestDto.PageNumber, requestDto.PageSize, orderBy: QueryHelper.BuildOrderByFunction<Route>(requestDto));
+            var entities = await _unitOfWork.RouteRepository.GetPaginatedAsync(requestDto.PageNumber, requestDto.PageSize, orderBy: BuildOrderByFunction<Route>(requestDto));
 
             var response = new PaginatedResponseDto<IEnumerable<ResponseRouteDto>>(_mapper.Map<IEnumerable<ResponseRouteDto>>(entities.Data), requestDto.PageNumber, requestDto.PageSize, entities.TotalItems);
             return response;
@@ -210,9 +210,9 @@ namespace GeoStream.Api.Application.Services
 
         public async Task<ResponseDto<IEnumerable<ResponseRouteDto>>> SearchAsync(SearchRouteDto requestDto)
         {
-            var searchExpression = QueryHelper.BuildPredicate<Route>(requestDto);
+            var searchExpression = BuildPredicate<Route>(requestDto);
 
-            var entities = await _unitOfWork.RouteRepository.GetAsync(searchExpression, orderBy: QueryHelper.BuildOrderByFunction<Route>(requestDto));
+            var entities = await _unitOfWork.RouteRepository.GetAsync(searchExpression, orderBy: BuildOrderByFunction<Route>(requestDto));
 
             if (requestDto.HubId != null && requestDto.HubLatitude != null && requestDto.HubLongitude != null)
             {
@@ -225,8 +225,8 @@ namespace GeoStream.Api.Application.Services
 
         public async Task<PaginatedResponseDto<IEnumerable<ResponseRouteDto>>> SearchPaginatedAsync(SearchPaginatedRouteDto requestDto)
         {
-            var searchExpression = QueryHelper.BuildPredicate<Route>(requestDto);
-            var entities = await _unitOfWork.RouteRepository.GetPaginatedAsync(requestDto.PageNumber, requestDto.PageSize, searchExpression, orderBy: QueryHelper.BuildOrderByFunction<Route>(requestDto));
+            var searchExpression = BuildPredicate<Route>(requestDto);
+            var entities = await _unitOfWork.RouteRepository.GetPaginatedAsync(requestDto.PageNumber, requestDto.PageSize, searchExpression, orderBy: BuildOrderByFunction<Route>(requestDto));
 
             var response = new PaginatedResponseDto<IEnumerable<ResponseRouteDto>>(_mapper.Map<IEnumerable<ResponseRouteDto>>(entities.Data), requestDto.PageNumber, requestDto.PageSize, entities.TotalItems);
             return response;
@@ -251,9 +251,9 @@ namespace GeoStream.Api.Application.Services
             return response;
         }
 
-        public async Task<ResponseDto<IEnumerable<ResponseRouteHubDto>>> GetAllRouteHubsAsync(QueryRequestDto? requestDto)
+        public async Task<ResponseDto<IEnumerable<ResponseRouteHubDto>>> GetAllRouteHubsAsync(RequestDto? requestDto)
         {
-            var entities = await _unitOfWork.RouteHubRepository.GetAsync(orderBy: QueryHelper.BuildOrderByFunction<RouteHub>(requestDto));
+            var entities = await _unitOfWork.RouteHubRepository.GetAsync(orderBy: BuildOrderByFunction<RouteHub>(requestDto));
 
             var response = new ResponseDto<IEnumerable<ResponseRouteHubDto>>(_mapper.Map<IEnumerable<ResponseRouteHubDto>>(entities));
             return response;

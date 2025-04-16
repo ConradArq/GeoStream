@@ -2,7 +2,7 @@
 
 namespace GeoStream.Api.Application.Dtos.Scanner
 {
-    public class SearchScannerDto : QueryRequestDto
+    public class SearchScannerDto : RequestDto
     {
         public string? Code { get; set; }
         public float? LaneDirectionDegrees { get; set; }

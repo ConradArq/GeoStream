@@ -6,7 +6,6 @@ using GeoStream.Api.Application.Dtos;
 using GeoStream.Api.Application.Exceptions;
 using System.Linq.Dynamic.Core;
 using GeoStream.Api.Application.Resources;
-using MongoDB.Bson;
 
 namespace GeoStream.Api.Helpers
 {
@@ -159,7 +158,7 @@ namespace GeoStream.Api.Helpers
         /// Thrown when the specified OrderBy property does not exist on type <typeparamref name="T"/>, 
         /// indicating an invalid client request.
         /// </exception>
-        public static Func<IQueryable<T>, IOrderedQueryable<T>>? BuildOrderByFunction<T>(QueryRequestDto? requestDto)
+        public static Func<IQueryable<T>, IOrderedQueryable<T>>? BuildOrderByFunction<T>(RequestDto? requestDto)
         {
             if (string.IsNullOrWhiteSpace(requestDto?.OrderBy))
                 return null;

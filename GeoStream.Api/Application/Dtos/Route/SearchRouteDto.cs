@@ -4,7 +4,7 @@ using GeoStream.Api.Domain.Enums;
 
 namespace GeoStream.Api.Application.Dtos.Route
 {
-    public class SearchRouteDto : QueryRequestDto
+    public class SearchRouteDto : RequestDto
     {
         public string? Name { get; set; }
         public string? Description { get; set; }

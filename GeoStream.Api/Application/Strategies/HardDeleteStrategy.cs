@@ -2,7 +2,7 @@
 using GeoStream.Api.Domain.Interfaces.Models;
 using GeoStream.Api.Domain.Interfaces.Repositories;
 
-namespace GeoStream.Api.Infrastructure.Persistence.MSSQL.Strategies
+namespace GeoStream.Api.Application.Strategies
 {
     /// <summary>
     /// A deletion strategy that performs a hard delete by removing the entity from the database context.

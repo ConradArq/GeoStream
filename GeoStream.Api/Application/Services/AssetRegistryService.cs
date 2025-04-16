@@ -8,13 +8,8 @@ namespace GeoStream.Api.Application.Services
 {
     internal class AssetRegistryService : IAssetRegistryService
     {
-        private readonly IMapper _mapper;
-        private readonly IUnitOfWork _unitOfWork;
-
-        public AssetRegistryService(IMapper mapper, IUnitOfWork unitOfWork)
+        public AssetRegistryService()
         {
-            _mapper = mapper;
-            _unitOfWork = unitOfWork;
         }
 
         public Task<ResponseDto<IEnumerable<ResponseAssetRegistryDto>>> SearchAsync(SearchAssetRegistryDto requestDto)

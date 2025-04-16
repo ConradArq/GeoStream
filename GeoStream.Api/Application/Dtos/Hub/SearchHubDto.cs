@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace GeoStream.Api.Application.Dtos.Hub
 {
-    public class SearchHubDto : QueryRequestDto
+    public class SearchHubDto : RequestDto
     {
         public int? Id { get; set; }
         public string? Code { get; set; }

@@ -2,7 +2,7 @@
 using GeoStream.Api.Domain.Interfaces.Models;
 using GeoStream.Api.Domain.Interfaces.Repositories;
 
-namespace GeoStream.Api.Infrastructure.Persistence.MSSQL.Strategies
+namespace GeoStream.Api.Application.Strategies
 {
     /// <summary>
     /// Provides a default implementation for synchronizing a collection of related entities 

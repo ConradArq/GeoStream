@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc.ModelBinding;
 using System.ComponentModel;
 using System.Reflection;
-using GeoStream.Api.Application.Resources;
 
 namespace GeoStream.Api.API.ModelBinders
 {

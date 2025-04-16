@@ -85,7 +85,7 @@ namespace GeoStream.Api.Controllers
         [HttpGet]
         [Authorize(Roles = "Admin, Manager")]
         [ProducesResponseType(typeof(ApiResponseDto<IEnumerable<ResponseRouteDto>>), StatusCodes.Status200OK)]
-        public async Task<ActionResult> GetAll([FromQuery] QueryRequestDto? requestDto)
+        public async Task<ActionResult> GetAll([FromQuery] RequestDto? requestDto)
         {
             var responseDto = await _routeService.GetAllAsync(requestDto);
             var apiResponseDto = ApiResponseDto<IEnumerable<ResponseRouteDto>>.Ok(responseDto!);
@@ -148,7 +148,7 @@ namespace GeoStream.Api.Controllers
         [Authorize(Roles = "Admin, Manager")]
         [ProducesResponseType(typeof(ApiResponseDto<IEnumerable<ResponseRouteHubDto>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponseDto<object>), StatusCodes.Status404NotFound)]
-        public async Task<ActionResult> GetAllRouteHubs([FromQuery] QueryRequestDto? requestDto)
+        public async Task<ActionResult> GetAllRouteHubs([FromQuery] RequestDto? requestDto)
         {
             var responseDto = await _routeService.GetAllRouteHubsAsync(requestDto);
             var apiResponseDto = ApiResponseDto<IEnumerable<ResponseRouteHubDto>>.Ok(responseDto!);

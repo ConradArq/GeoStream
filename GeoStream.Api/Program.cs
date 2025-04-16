@@ -65,7 +65,7 @@ builder.Services.AddControllers(options =>
     // Uncomment to disable automatic 400 Bad Request responses for invalid models. If SuppressModelStateInvalidFilter is
     // set to true, InvalidModelStateResponseFactory will not handle the response, so manual checking of ModelState.IsValid 
     // would be required if no other validation mechanism is in place.
-    // options.SuppressModelStateInvalidFilter = true;
+    //// options.SuppressModelStateInvalidFilter = true;
 
     options.InvalidModelStateResponseFactory = context =>
     {
@@ -110,14 +110,14 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = builder.Configuration["JwtSettings:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:Key"]!)),
         // Uncomment to allow tokens without an exp claim while validating those with exp claim (for testing purposes, not production)
-        //LifetimeValidator = (notBefore, expires, token, parameters) =>
-        //{
-        //    if (!expires.HasValue)
-        //    {
-        //        return true;
-        //    }
-        //    return DateTime.UtcNow < expires.Value;
-        //}
+        ////LifetimeValidator = (notBefore, expires, token, parameters) =>
+        ////{
+        ////    if (!expires.HasValue)
+        ////    {
+        ////        return true;
+        ////    }
+        ////    return DateTime.UtcNow < expires.Value;
+        ////}
     };
 });
 

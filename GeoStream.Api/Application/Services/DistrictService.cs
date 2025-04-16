@@ -21,11 +21,11 @@ namespace GeoStream.Api.Application.Services
 
         public async Task<ResponseDto<IEnumerable<ResponseDistrictDto>>> SearchAsync(SearchDistrictDto requestDto)
         {
-            var searchExpression = QueryHelper.BuildPredicate<District>(requestDto);
+            var searchExpression = BuildPredicate<District>(requestDto);
 
             var entities = await _unitOfWork.DistrictRepository.GetAsync(
                 predicate: searchExpression,
-                orderBy: QueryHelper.BuildOrderByFunction<District>(requestDto)
+                orderBy: BuildOrderByFunction<District>(requestDto)
             );
 
             var response = new ResponseDto<IEnumerable<ResponseDistrictDto>>(_mapper.Map<IEnumerable<ResponseDistrictDto>>(entities));

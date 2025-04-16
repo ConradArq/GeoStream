@@ -4,7 +4,7 @@ using GeoStream.Api.Application.Resources;
 
 namespace GeoStream.Api.Application.Validators.Route
 {
-    public class RequestDtoValidator : AbstractValidator<QueryRequestDto>
+    public class RequestDtoValidator : AbstractValidator<RequestDto>
     {
         public RequestDtoValidator()
         {

@@ -9,7 +9,7 @@ using GeoStream.Api.Application.Resources;
 
 namespace GeoStream.Api.Application.Dtos
 {
-    public class PaginationRequestDto: QueryRequestDto
+    public class PaginationRequestDto : RequestDto
     {
         [DefaultValue(1)]
         public int PageNumber { get; set; } = 1;

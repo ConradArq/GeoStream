@@ -9,7 +9,8 @@ using GeoStream.Api.Domain.Enums;
 using GeoStream.Api.Domain.Interfaces.Repositories;
 using GeoStream.Api.Domain.Models.Entities;
 using GeoStream.Api.Helpers;
-using GeoStream.Api.Infrastructure.Persistence.MSSQL.Strategies;
+using GeoStream.Api.Application.Strategies;
+using Azure.Core;
 
 namespace GeoStream.Api.Application.Services
 {
@@ -99,7 +100,7 @@ namespace GeoStream.Api.Application.Services
 
         public async Task<ResponseDto<object>> DeleteAsync(int id)
         {
-            var entity = await _unitOfWork.AssetRepository.GetSingleAsync(id, includes:Includes<Asset>(x=>x.Include(x=>x.SpecialAccesss), x => x.Include(x => x.AssetEmitters)));
+            var entity = await _unitOfWork.AssetRepository.GetSingleAsync(id, includes: Includes<Asset>(x=>x.Include(x=>x.SpecialAccesss), x => x.Include(x => x.AssetEmitters)));
 
             if (entity == null)
             {
@@ -131,14 +132,14 @@ namespace GeoStream.Api.Application.Services
             return response;
         }
 
-        public async Task<ResponseDto<IEnumerable<ResponseAssetDto>>> GetAllAsync(QueryRequestDto? requestDto)
+        public async Task<ResponseDto<IEnumerable<ResponseAssetDto>>> GetAllAsync(RequestDto? requestDto)
         {
             var selector = new Func<IQueryable<Asset>, IQueryable<ResponseAssetDto>>(query => query
                 .ProjectTo<ResponseAssetDto>(_mapper.ConfigurationProvider)
             );
 
             var responseDtos = await _unitOfWork.AssetRepository.GetAsync(
-                orderBy: QueryHelper.BuildOrderByFunction<Asset>(requestDto),
+                orderBy: BuildOrderByFunction<Asset>(requestDto),
                 selector: selector
             );
 
@@ -148,7 +149,7 @@ namespace GeoStream.Api.Application.Services
 
         public async Task<PaginatedResponseDto<IEnumerable<ResponseAssetDto>>> GetAllPaginatedAsync(PaginationRequestDto requestDto)
         {
-            var entities = await _unitOfWork.AssetRepository.GetPaginatedAsync(requestDto.PageNumber, requestDto.PageSize);
+            var entities = await _unitOfWork.AssetRepository.GetPaginatedAsync(requestDto.PageNumber, requestDto.PageSize, orderBy: BuildOrderByFunction<Asset>(requestDto));
 
             var response = new PaginatedResponseDto<IEnumerable<ResponseAssetDto>>(_mapper.Map<IEnumerable<ResponseAssetDto>>(entities.Data), requestDto.PageNumber, requestDto.PageSize, entities.TotalItems);
             return response;
@@ -156,8 +157,8 @@ namespace GeoStream.Api.Application.Services
 
         public async Task<ResponseDto<IEnumerable<ResponseAssetDto>>> SearchAsync(SearchAssetDto requestDto)
         {
-            var searchExpression = QueryHelper.BuildPredicate<Asset>(requestDto);
-            var entities = await _unitOfWork.AssetRepository.GetAsync(searchExpression);
+            var searchExpression = BuildPredicate<Asset>(requestDto);
+            var entities = await _unitOfWork.AssetRepository.GetAsync(searchExpression, orderBy: BuildOrderByFunction<Asset>(requestDto));
 
             var response = new ResponseDto<IEnumerable<ResponseAssetDto>>(_mapper.Map<IEnumerable<ResponseAssetDto>>(entities));
             return response;
@@ -165,8 +166,8 @@ namespace GeoStream.Api.Application.Services
 
         public async Task<PaginatedResponseDto<IEnumerable<ResponseAssetDto>>> SearchPaginatedAsync(SearchPaginatedAssetDto requestDto)
         {
-            var searchExpression = QueryHelper.BuildPredicate<Asset>(requestDto);
-            var entities = await _unitOfWork.AssetRepository.GetPaginatedAsync(requestDto.PageNumber, requestDto.PageSize, searchExpression);
+            var searchExpression = BuildPredicate<Asset>(requestDto);
+            var entities = await _unitOfWork.AssetRepository.GetPaginatedAsync(requestDto.PageNumber, requestDto.PageSize, searchExpression, orderBy: BuildOrderByFunction<Asset>(requestDto));
 
             var response = new PaginatedResponseDto<IEnumerable<ResponseAssetDto>>(_mapper.Map<IEnumerable<ResponseAssetDto>>(entities.Data), requestDto.PageNumber, requestDto.PageSize, entities.TotalItems);
             return response;

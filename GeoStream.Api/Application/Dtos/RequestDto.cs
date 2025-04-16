@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace GeoStream.Api.Application.Dtos
 {
-    public class QueryRequestDto
+    public class RequestDto
     {
         /// <summary>
         /// The name of the field to order the results by (e.g., "Name", "DateCreated").

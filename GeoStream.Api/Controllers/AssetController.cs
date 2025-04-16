@@ -72,7 +72,7 @@ namespace GeoStream.Api.Controllers
         [HttpGet]
         [Authorize(Roles = "Admin, Manager")]
         [ProducesResponseType(typeof(ApiResponseDto<IEnumerable<ResponseAssetDto>>), StatusCodes.Status200OK)]
-        public async Task<ActionResult> GetAll([FromQuery] QueryRequestDto? requestDto)
+        public async Task<ActionResult> GetAll([FromQuery] RequestDto? requestDto)
         {
             var responseDto = await _assetService.GetAllAsync(requestDto);
             var apiResponseDto = ApiResponseDto<IEnumerable<ResponseAssetDto>>.Ok(responseDto!);

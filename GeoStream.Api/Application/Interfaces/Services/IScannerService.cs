@@ -9,7 +9,7 @@ namespace GeoStream.Api.Application.Interfaces.Services
         Task<ResponseDto<ResponseScannerDto>> UpdateAsync(int id, UpdateScannerDto requestDto);
         Task<ResponseDto<object>> DeleteAsync(int id);
         Task<ResponseDto<ResponseScannerDto>> GetAsync(int id);
-        Task<ResponseDto<IEnumerable<ResponseScannerDto>>> GetAllAsync(QueryRequestDto? requestDto);
+        Task<ResponseDto<IEnumerable<ResponseScannerDto>>> GetAllAsync(RequestDto? requestDto);
         Task<PaginatedResponseDto<IEnumerable<ResponseScannerDto>>> GetAllPaginatedAsync(PaginationRequestDto requestDto);
         Task<ResponseDto<IEnumerable<ResponseScannerDto>>> SearchAsync(SearchScannerDto requestDto);
         Task<PaginatedResponseDto<IEnumerable<ResponseScannerDto>>> SearchPaginatedAsync(SearchPaginatedScannerDto requestDto);

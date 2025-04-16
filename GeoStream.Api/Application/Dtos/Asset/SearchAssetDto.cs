@@ -3,7 +3,7 @@ using System.ComponentModel;
 
 namespace GeoStream.Api.Application.Dtos.Asset
 {
-    public class SearchAssetDto : QueryRequestDto
+    public class SearchAssetDto : RequestDto
     {
         public int? Id { get; set; }
         public string? Code { get; set; }
