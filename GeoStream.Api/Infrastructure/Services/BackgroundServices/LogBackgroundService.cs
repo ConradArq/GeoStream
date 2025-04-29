@@ -45,7 +45,6 @@ namespace GeoStream.Api.Infrastructure.Services.BackgroundServices
 
             _semaphore = new SemaphoreSlim(5);
         }
-
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             while (!stoppingToken.IsCancellationRequested)
@@ -54,24 +53,26 @@ namespace GeoStream.Api.Infrastructure.Services.BackgroundServices
 
                 if (logEntry != null)
                 {
-                    // Start processing log entry with bounded parallelism
-                    _ = Task.Run(async () =>
-                    {
-                        await _semaphore.WaitAsync(stoppingToken);
-                        try
-                        {
-                            await ProcessLogEntryWithRetryAsync(logEntry, stoppingToken);
-                        }
-                        catch(Exception ex)
-                        {
-                            _logger.LogError(ex, "Error in logging background service.");
-                        }
-                        finally
-                        {
-                            _semaphore.Release();
-                        }
-                    }, stoppingToken);
+                    _ = ProcessLogInParallelAsync(logEntry, stoppingToken);
                 }
+            }
+        }
+
+        // Start processing log entry with bounded parallelism
+        private async Task ProcessLogInParallelAsync(object logEntry, CancellationToken stoppingToken)
+        {
+            await _semaphore.WaitAsync(stoppingToken);
+            try
+            {
+                await ProcessLogEntryWithRetryAsync(logEntry, stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in logging background service.");
+            }
+            finally
+            {
+                _semaphore.Release();
             }
         }
 
@@ -99,7 +100,7 @@ namespace GeoStream.Api.Infrastructure.Services.BackgroundServices
             {
                 try
                 {
-                    await _httpService.SendAsync<object>(HttpMethod.Post, apiUrl, logEntry, "application/json", new Dictionary<string, string>() { { "Authorization", string.Concat("Bearer ", authorizationToken) } });                               
+                    await _httpService.SendAsync<object>(HttpMethod.Post, apiUrl, logEntry, "application/json", new Dictionary<string, string>() { { "Authorization", string.Concat("Bearer ", authorizationToken) } });
                 }
                 catch (Exception ex)
                 {

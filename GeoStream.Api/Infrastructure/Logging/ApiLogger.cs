@@ -24,8 +24,6 @@ namespace GeoStream.Api.Infrastructure.Logging
     /// - **IApiLogger**: Adds custom logging methods that extend beyond the standard <see cref="ILogger"/> functionality. 
     /// Inject this interface if you require these custom methods.
     /// </summary>
-
-
     public class ApiLogger : ILogger, IApiLogger
     {
         private static readonly AsyncLocal<bool> _isLogging = new();
