@@ -90,7 +90,59 @@ builder.Services.AddControllers(options =>
 
 builder.Services.AddEndpointsApiExplorer();
 
-builder.Services.AddSwaggerGen();
+builder.Services.AddCors(options =>
+{
+    // Browsers block AllowAnyOrigin() when credentials like Authorization headers are sent, so origins in the CORS policy are used instead.
+    var origins = builder.Configuration.GetSection("Cors:ClientAppOrigins").Get<string[]>()
+        ?? throw new InvalidOperationException("CORS origin is not configured. Please set 'Cors:ClientAppOrigin' in configuration.");
+    options.AddPolicy("ClientApp", builder =>
+    {
+        builder.WithOrigins(origins)
+               .AllowCredentials()
+               .AllowAnyHeader()
+               .AllowAnyMethod();
+    });
+});
+
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+
+        Title = "GeoStream.Api",
+        Version = "v1",
+        Description = "This API provides CRUD operations for managing asset insights data.",
+        Contact = new OpenApiContact()
+        {
+            Name = "Development by: conra.arq@gmail.com"
+        }
+    });
+
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Please insert the JWT token in this format: Bearer {your token here}"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
+    });
+});
 
 builder.Services.AddAuthentication(options =>
 {
@@ -182,76 +234,11 @@ builder.Services.AddScoped<IEmitterRepository, EmitterRepository>();
 
 builder.Services.AddSingleton<IHttpService, HttpService>();
 
-
 builder.Services.AddDbContext<GeoStreamDbContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
     options.EnableSensitiveDataLogging();
     //*,sqlServerOptions => sqlServerOptions.CommandTimeout(60)*/)
-});
-
-#endregion
-
-builder.Services.AddCors(options =>
-{
-    // Browsers block AllowAnyOrigin() when credentials like Authorization headers are sent, so origins in the CORS policy are used instead.
-    options.AddPolicy("ClientApp", builder =>
-    {
-
-#if DEBUG
-        builder.WithOrigins("http://localhost:5170")
-               .AllowCredentials()
-               .AllowAnyHeader()
-               .AllowAnyMethod();
-#else
-        builder.WithOrigins("https://client-app-url.com")
-               .AllowCredentials()
-               .AllowAnyHeader()
-               .AllowAnyMethod();
-#endif
-
-    });
-
-});
-
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-
-        Title = "GeoStream.Api",
-        Version = "v1",
-        Description = "This API provides CRUD operations for managing asset insights data.",
-        Contact = new OpenApiContact()
-        {
-            Name = "Development by: conra.arq@gmail.com"
-        }
-    });
-
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Name = "Authorization",
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer",
-        BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Please insert the JWT token in this format: Bearer {your token here}"
-    });
-
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            new string[] {}
-        }
-    });
 });
 
 // Configure HostOptions to handle unhandled exceptions in BackgroundService
@@ -261,6 +248,8 @@ builder.Services.Configure<HostOptions>(options =>
 });
 
 builder.Services.Configure<MongoDBSettings>(builder.Configuration.GetSection("MongoDBSettings"));
+
+#endregion
 
 #region Logging
 

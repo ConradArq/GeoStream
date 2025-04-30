@@ -157,7 +157,7 @@ namespace GeoStream.Api.Infrastructure.Persistence.MSSQL.Repositories
             foreach (var include in includes)
                 query = include(query);
 
-            var filtered = query.Where(e => EF.Property<object>(e, "Id")!.Equals(id));
+            var filtered = query.Where(e => e.Id.Equals(id));
 
             return await selector(filtered).FirstOrDefaultAsync();
         }
@@ -175,7 +175,7 @@ namespace GeoStream.Api.Infrastructure.Persistence.MSSQL.Repositories
             foreach (var include in includes)
                 query = include(query);
 
-            return await query.FirstOrDefaultAsync(e => EF.Property<object>(e, "Id")!.Equals(id));
+            return await query.FirstOrDefaultAsync(e => e.Id.Equals(id));
         }
 
         public virtual T Create(T entity)
